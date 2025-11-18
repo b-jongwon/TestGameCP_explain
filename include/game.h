@@ -1,29 +1,72 @@
-#ifndef GAME_H
+// game.h
+// --------------------------------------------------
+// 게임 전체에서 공통으로 사용하는 상수와 핵심 구조체(Player, Obstacle, Stage)를 정의하는 헤더.
+// 이 헤더는 사실상 "게임 도메인 모델"을 정의하는 역할을 한다고 보면 됨.
+// 대부분의 다른 모듈들이 이 파일을 include해서 Player/Stage 정보를 공유한다.
+
+#ifndef GAME_H                 // game.h 중복 include 방지용 include guard 시작
 #define GAME_H
 
+// 게임 맵의 가로 길이(열 수). 
+// - Stage.map에서 한 줄에 들어가는 문자 개수와 동일해야 함.
+// - 렌더링, 충돌 판정, 스테이지 파일 파싱 등에서 공통 기준으로 사용.
 #define MAX_X 60
+
+// 게임 맵의 세로 길이(행 수).
+// - Stage.map에서 전체 줄의 개수와 동일.
+// - 터미널 화면에서 y 좌표 범위, 플레이어 이동, 장애물 이동, 맵 출력에 사용.
 #define MAX_Y 20
+
+// 한 스테이지에서 허용하는 최대 장애물 개수.
+// - Stage.obstacles 배열의 크기.
+// - 스테이지 설계 시 장애물 개수를 이 값 이하로 제한해야 함.
 #define MAX_OBSTACLES 64
 
+// Player 구조체
+// - 플레이어 캐릭터의 상태를 표현.
+// - 위치(x, y)와 생존 여부(alive) 정도의 심플한 정보만 들고 있음.
+// - 입력 처리, 충돌 판정, 렌더링에서 모두 사용.
 typedef struct {
-    int x, y;
-    int alive;
+    int x, y;      // 플레이어의 현재 위치 (맵 좌표, 0 <= x < MAX_X, 0 <= y < MAX_Y)
+    int alive;     // 플레이어 생존 여부. 1 = 살아있음, 0 = 죽음(충돌, 탈락 등)
 } Player;
 
+// Obstacle 구조체
+// - 움직이는 장애물 하나를 표현.
+// - x, y: 현재 위치
+// - dir: 이동 방향 (수평/수직에 따라 의미가 달라짐)
+// - type: 장애물의 이동 타입 (0 = 가로로 이동, 1 = 세로로 이동)
 typedef struct {
-    int x, y;
-    int dir;   // +1 or -1
-    int type;  // 0 = horizontal, 1 = vertical
+    int x, y;      // 장애물 현재 위치 (맵 좌표)
+    int dir;       // 이동 방향. +1이면 오른쪽/아래, -1이면 왼쪽/위 방향으로 이동하도록 사용.
+    int type;      // 장애물 타입. 0 = horizontal(수평 이동), 1 = vertical(수직 이동)
 } Obstacle;
 
+// Stage 구조체
+// - 한 스테이지에 대한 거의 모든 정보를 담는 구조체.
+// - 스테이지 ID, 이름, 맵 데이터, 시작/목표 위치, 장애물 목록 등을 포함.
+// - 사실상 "게임 한 판"에 대한 모든 환경 정보를 가지고 있음.
 typedef struct {
-    int id;
-    char name[32];
-    char map[MAX_Y][MAX_X + 1];
-    int start_x, start_y;
-    int goal_x, goal_y;
-    int num_obstacles;
-    Obstacle obstacles[MAX_OBSTACLES];
+    int id;                              // 스테이지 ID 번호 (1, 2, 3 ... 이런 식으로 구분)
+    char name[32];                       // 스테이지 이름 (UI에 표시 가능)
+    char map[MAX_Y][MAX_X + 1];          // 실제 맵 데이터.
+//  - 각 행은 '\0'을 포함해 MAX_X + 1 크기.
+//  - 맵 파일에서 읽어온 문자들을 저장하고, 렌더링 시 이 배열을 그대로 출력.
+//  - 벽, 빈 공간, 장애물 배치 등을 문자로 표현 가능.
+
+    int start_x, start_y;                // 플레이어 시작 위치.
+//  - 스테이지 로드 시 플레이어를 이 좌표로 초기화.
+
+    int goal_x, goal_y;                  // 목표 지점(골)의 위치.
+//  - 플레이어가 이 위치에 도달하면 스테이지 클리어로 간주.
+
+    int num_obstacles;                   // 실제로 사용 중인 장애물 개수.
+//  - obstacles 배열 중 의미 있는 요소 개수.
+//  - 장애물 이동 루프에서 0 ~ num_obstacles-1 인덱스만 순회.
+
+    Obstacle obstacles[MAX_OBSTACLES];   // 장애물 배열.
+//  - 각 요소가 맵 상의 움직이는 장애물 하나를 의미.
+//  - obstacle 스레드 또는 move_obstacles 함수에서 이 배열을 iterate하면서 움직임 처리.
 } Stage;
 
-#endif
+#endif // GAME_H
