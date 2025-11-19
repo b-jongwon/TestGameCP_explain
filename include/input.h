@@ -9,7 +9,14 @@
 #define INPUT_H
 
 
+// 입력 초기화
+void init_input(void);
 
+// 입력 복구
+void restore_input(void);
+
+// raw input
+int read_input(void);
 // 현재 키보드 입력을 비동기적으로 검사하는 함수.
 // - 키가 눌리지 않았으면 -1을 반환.
 // - 키가 눌렸으면 해당 키의 ASCII 코드(char)를 int로 반환.
