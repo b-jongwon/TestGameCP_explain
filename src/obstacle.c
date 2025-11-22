@@ -44,7 +44,7 @@ void move_obstacles(Stage *stage) {
             // x가 왼쪽/오른쪽 경계를 벗어나거나, 해당 위치가 벽('@')이면
             if (o->x <= 1 || 
                 o->x >= MAX_X - 2 || 
-                stage->map[o->y][o->x] == '@') {
+                stage->map[o->y][o->x] == '#') {
 
                 // 방향을 반대로 뒤집고
                 o->dir *= -1;
@@ -61,7 +61,7 @@ void move_obstacles(Stage *stage) {
             // y가 위/아래 경계를 벗어나거나, 해당 위치가 벽('@')이면
             if (o->y <= 1 || 
                 o->y >= MAX_Y - 2 || 
-                stage->map[o->y][o->x] == '@') {
+                stage->map[o->y][o->x] == '#') {
 
                 // 방향 뒤집기
                 o->dir *= -1;

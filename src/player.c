@@ -45,7 +45,7 @@ void move_player(Player *p, char input, const Stage *stage) {
     char cell = stage->map[ny][nx];
 
     // '@' 문자이면 벽으로 간주 → 이동 불가
-    if (cell == '@')
+    if (cell == '#')
         return;
 
     // 위 조건을 모두 통과했다면 실제 플레이어 좌표를 새 위치로 업데이트
