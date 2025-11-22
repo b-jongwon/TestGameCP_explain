@@ -32,10 +32,11 @@ int main(void) {
     // 따라서 render()에서 mvprintw/mvaddch를 정상 사용하려면
     // 여기에서 반드시 initscr()가 먼저 호출되어야 한다.
     initscr();              // 터미널을 ncurses 모드로 전환
-    noecho();               // 키 입력 시 실제 문자 화면에 표시 안 함
-    cbreak();               // 줄 버퍼링 해제 → 입력 즉시 처리
+   // noecho();               // 키 입력 시 실제 문자 화면에 표시 안 함
+   // cbreak();               // 줄 버퍼링 해제 → 입력 즉시 처리
     curs_set(0);            // 커서 숨김 (게임 화면 깜빡임 방지)
-    nodelay(stdscr, TRUE);  // getch()를 논블로킹 모드로 설정
+   // nodelay(stdscr, TRUE);  // getch()를 논블로킹 모드로 설정
+   keypad(stdscr, TRUE);
 
 
     // ============================================================
@@ -52,7 +53,7 @@ int main(void) {
     init_input();
 
     // 프로그램이 정상 종료될 때 터미널을 원상복구하도록 등록
-    atexit(restore_input);
+   // atexit(restore_input);
 
 
     // ============================================================
@@ -223,6 +224,7 @@ int main(void) {
     // 8. ncurses 종료
     // ============================================================
     // (이걸 호출해야 터미널이 원래 모드로 돌아감)
+    restore_input();  // 터미널 원복 먼저!
     endwin();
 
     return 0;

@@ -1,6 +1,8 @@
 #include <signal.h>   // sigaction, sig_atomic_t, SIGINT, SIGTERM
 #include <stdio.h>    // (현재는 사용 안 하지만 디버깅용으로 쓸 수도 있음)
-
+#include <unistd.h>   // ← _exit() 선언 추가
+#include <ncurses.h>  // ← endwin() 선언 추가
+#include "input.h"    // ← restore_input() 선언 추가
 #include "signal_handler.h"  // g_running, setup_signal_handlers 선언
 
 
@@ -16,12 +18,18 @@ volatile sig_atomic_t g_running = 1;
 // 실제 시그널이 발생했을 때 호출되는 핸들러 함수.
 // - signo: 어떤 시그널인지(예: SIGINT, SIGTERM)지만 여기서는 실제 값은 사용 안 함.
 // - 해야 할 일: g_running을 0으로 바꾸어 메인 루프 탈출 유도.
+//static void handle_signal(int signo) {
+   // (void)signo;   // 매개변수를 사용하지 않으므로 경고 방지 용
+
+  //  g_running = 0; // 게임 종료 요청 플래그
+//}
 static void handle_signal(int signo) {
-    (void)signo;   // 매개변수를 사용하지 않으므로 경고 방지 용
-
-    g_running = 0; // 게임 종료 요청 플래그
+    (void)signo;
+    g_running = 0;
+    restore_input();
+    endwin();
+    _exit(0);
 }
-
 
 // ----------------------------------------------------------
 // setup_signal_handlers()
