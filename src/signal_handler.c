@@ -1,9 +1,6 @@
-#include <signal.h>   // sigaction, sig_atomic_t, SIGINT, SIGTERM
-#include <stdio.h>    // (현재는 사용 안 하지만 디버깅용으로 쓸 수도 있음)
-#include <unistd.h>   // ← _exit() 선언 추가
-#include <ncurses.h>  // ← endwin() 선언 추가
-#include "input.h"    // ← restore_input() 선언 추가
-#include "signal_handler.h"  // g_running, setup_signal_handlers 선언
+#include <signal.h>
+#include <stddef.h>
+#include "signal_handler.h"
 
 
 // 게임 실행 여부를 나타내는 전역 플래그.
@@ -13,18 +10,10 @@ volatile sig_atomic_t g_running = 1;
 
 
 
-static void handle_signal(int signo) {
+static void handle_signal(int signo)
+{
     (void)signo;
     g_running = 0;
-    restore_input();
-    endwin();
-    _exit(0);
-}
-static void handle_resize(int sig) {
-    (void)sig;
-    endwin();
-    refresh();
-    clear();
 }
 
 // ----------------------------------------------------------
@@ -48,5 +37,4 @@ void setup_signal_handlers(void) {
     // SIGINT, SIGTERM 시그널에 대해 핸들러 등록
     sigaction(SIGINT, &sa, NULL);
     sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGWINCH, &sa, NULL);
 }

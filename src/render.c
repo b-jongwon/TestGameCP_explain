@@ -1,94 +1,216 @@
 // ============================================================================
 // render.c
 // ----------------------------------------------------------------------------
-// 이 모듈은 게임 화면 출력(렌더링)을 전담한다.
-//
-// ■ 핵심 설계 개념
-//   - Stage.map 은 '원본 맵 데이터'이므로 수정 금지
-//   - 화면에 표시할 때는 단순히 출력만 수행 (레이어 개념)
-//     1) 맵 타일 출력 (#, 공백 등)
-//     2) 장애물(X) 출력 (맵 위 오버레이)
-//     3) 골(G), 플레이어(P) 출력 (가장 위 레이어)
-//
-// ■ 왜 safe_mvaddch() 를 쓰는가? (중요!)
-//   - 터미널 크기가 맵보다 작거나 리사이즈가 발생하는 경우,
-//     mvaddch()가 화면 밖 좌표에 그리면 ncurses가 출력 실패 상태가 되면서
-//     전체 화면이 사라지는 문제가 발생함
-//   - 이를 방지하기 위해,
-//       화면 범위 확인 → 범위 안일 때만 출력
-//     기능을 safe_mvaddch() 로 제공
-//
-//   → 화면 크기 변화 문제를 해결하는 핵심 안전장치
-//
+// SDL2 + SDL2_image를 이용해 타일 기반 맵을 이미지로 렌더링한다.
+// Stage.map에 있는 문자 정보를 실제 PNG 텍스처와 매핑하여 화면에 표시한다.
 // ============================================================================
 
-#include <ncurses.h>
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_image.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "../include/game.h"
 #include "render.h"
-#include "obstacle.h"
 
-// ------------------------------------------------------------
-// safe_mvaddch()
-// ------------------------------------------------------------
-// mvaddch() 호출 전에 화면 좌표가 터미널 범위를 벗어나지 않는지 검사
-// ------------------------------------------------------------
-void safe_mvaddch(int y, int x, char ch) {
-    int term_h, term_w;
-    getmaxyx(stdscr, term_h, term_w); // 현재 터미널 크기 읽기
+#define TILE_SIZE 32
 
-    // 좌표가 화면 안에 있을 때만 출력 수행
-    if (y >= 0 && y < term_h && x >= 0 && x < term_w) {
-        mvaddch(y, x, ch);
+static SDL_Window *g_window = NULL;
+static SDL_Renderer *g_renderer = NULL;
+static SDL_Texture *g_tex_floor = NULL;
+static SDL_Texture *g_tex_wall = NULL;
+static SDL_Texture *g_tex_goal = NULL;
+static SDL_Texture *g_tex_player = NULL;
+static SDL_Texture *g_tex_professor = NULL;
+static int g_window_w = 0;
+static int g_window_h = 0;
+
+static SDL_Texture *load_texture(const char *path)
+{
+    SDL_Surface *surface = IMG_Load(path);
+    if (!surface)
+    {
+        fprintf(stderr, "IMG_Load failed for %s: %s\n", path, IMG_GetError());
+        return NULL;
+    }
+
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(g_renderer, surface);
+    SDL_FreeSurface(surface);
+
+    if (!texture)
+    {
+        fprintf(stderr, "SDL_CreateTextureFromSurface failed for %s: %s\n", path, SDL_GetError());
+    }
+
+    return texture;
+}
+
+static void destroy_texture(SDL_Texture **texture)
+{
+    if (texture && *texture)
+    {
+        SDL_DestroyTexture(*texture);
+        *texture = NULL;
     }
 }
 
+int init_renderer(void)
+{
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+    {
+        fprintf(stderr, "SDL_Init failed: %s\n", SDL_GetError());
+        return -1;
+    }
 
-// ------------------------------------------------------------
-// render()
-// ------------------------------------------------------------
-// 화면 전체를 그리는 함수 (프레임 기반 업데이트)
-// - Stage/map 기반으로 맵 타일 출력
-// - 장애물(X), 골(G), 플레이어(P) 레이어 순으로 출력
-// - 상단 UI 표시
-// ------------------------------------------------------------
+    if (!(IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG))
+    {
+        fprintf(stderr, "IMG_Init failed: %s\n", IMG_GetError());
+        SDL_Quit();
+        return -1;
+    }
+
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+
+    const int initial_w = 800;
+    const int initial_h = 600;
+    g_window = SDL_CreateWindow("Professor Dodge",
+                                SDL_WINDOWPOS_CENTERED,
+                                SDL_WINDOWPOS_CENTERED,
+                                initial_w,
+                                initial_h,
+                                SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+    if (!g_window)
+    {
+        fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
+        IMG_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    g_renderer = SDL_CreateRenderer(g_window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!g_renderer)
+    {
+        fprintf(stderr, "SDL_CreateRenderer failed: %s\n", SDL_GetError());
+        SDL_DestroyWindow(g_window);
+        g_window = NULL;
+        IMG_Quit();
+        SDL_Quit();
+        return -1;
+    }
+
+    g_window_w = initial_w;
+    g_window_h = initial_h;
+
+    g_tex_floor = load_texture("assets/image/floor64.png");
+    g_tex_wall = load_texture("assets/image/wall64.png");
+    g_tex_goal = load_texture("assets/image/backpack64.png");
+    g_tex_player = load_texture("assets/image/player64.png");
+    g_tex_professor = load_texture("assets/image/professor64.png");
+
+    if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_player || !g_tex_professor)
+    {
+        return -1;
+    }
+
+    return 0;
+}
+
+void shutdown_renderer(void)
+{
+    destroy_texture(&g_tex_floor);
+    destroy_texture(&g_tex_wall);
+    destroy_texture(&g_tex_goal);
+    destroy_texture(&g_tex_player);
+    destroy_texture(&g_tex_professor);
+
+    if (g_renderer)
+    {
+        SDL_DestroyRenderer(g_renderer);
+        g_renderer = NULL;
+    }
+    if (g_window)
+    {
+        SDL_DestroyWindow(g_window);
+        g_window = NULL;
+    }
+
+    IMG_Quit();
+    SDL_Quit();
+}
+
+static void ensure_window_matches_stage(const Stage *stage)
+{
+    if (!g_window || !g_renderer || !stage)
+        return;
+
+    int target_w = stage->width * TILE_SIZE;
+    int target_h = stage->height * TILE_SIZE;
+
+    if (target_w <= 0)
+        target_w = TILE_SIZE * 10;
+    if (target_h <= 0)
+        target_h = TILE_SIZE * 10;
+
+    if (target_w != g_window_w || target_h != g_window_h)
+    {
+        SDL_SetWindowSize(g_window, target_w, target_h);
+        SDL_RenderSetLogicalSize(g_renderer, target_w, target_h);
+        g_window_w = target_w;
+        g_window_h = target_h;
+    }
+}
+
+static SDL_Texture *texture_for_cell(char cell)
+{
+    if (cell == '#' || cell == '@')
+        return g_tex_wall;
+    return g_tex_floor;
+}
+
+static void draw_texture(SDL_Texture *texture, int x, int y)
+{
+    if (!texture)
+        return;
+    SDL_Rect dst = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+    SDL_RenderCopy(g_renderer, texture, NULL, &dst);
+}
+
 void render(const Stage *stage, const Player *player, double elapsed_time,
             int current_stage, int total_stages)
 {
-    clear();   // 가상 화면 버퍼 초기화 (화면 전체 지움)
+    if (!g_renderer || !stage || !player)
+        return;
 
-    // 상단 UI 정보 (스테이지 진행상황 + 시간)
-    mvprintw(0, 0, "=== Stealth Adventure ===  Stage %d/%d   Time: %.2fs",
-             current_stage, total_stages, elapsed_time);
+    ensure_window_matches_stage(stage);
 
-    // ==========================
-    // 1) 배경 맵 렌더링
-    // ==========================
-    for (int y = 0; y < stage->height; y++) {
-        for (int x = 0; x < stage->width; x++) {
-            safe_mvaddch(y + 1, x, stage->map[y][x]); // 1줄 띄워 UI 밑에 출력
+    SDL_SetRenderDrawColor(g_renderer, 15, 15, 15, 255);
+    SDL_RenderClear(g_renderer);
+
+    for (int y = 0; y < stage->height; y++)
+    {
+        for (int x = 0; x < stage->width; x++)
+        {
+            char cell = stage->map[y][x];
+            SDL_Texture *base = texture_for_cell(cell);
+            draw_texture(base, x, y);
+            if (cell == 'G')
+            {
+                draw_texture(g_tex_goal, x, y);
+            }
         }
     }
 
-    // ==========================
-    // 2) 장애물 레이어 출력
-    // ==========================
-    for (int i = 0; i < stage->num_obstacles; i++) {
+    for (int i = 0; i < stage->num_obstacles; i++)
+    {
         Obstacle o = stage->obstacles[i];
-        safe_mvaddch(o.y + 1, o.x, 'X');
+        draw_texture(g_tex_professor, o.x, o.y);
     }
 
-    // ==========================
-    // 3) 골(G), 플레이어(P)
-    // ==========================
-    safe_mvaddch(stage->goal_y + 1, stage->goal_x, 'G');
-    safe_mvaddch(player->y + 1, player->x, 'P');
+    draw_texture(g_tex_goal, stage->goal_x, stage->goal_y);
+    draw_texture(g_tex_player, player->x, player->y);
 
-    // 안내 메시지 (맵 하단)
-    mvprintw(stage->height + 2, 0,
-             "Controls: W/A/S/D move | Q Quit");
+    SDL_RenderPresent(g_renderer);
 
-    refresh(); // 실제 화면으로 갱신 (렌더링 확정)
+    char title[128];
+    snprintf(title, sizeof(title), "Stage %d/%d | Time %.2fs", current_stage, total_stages, elapsed_time);
+    SDL_SetWindowTitle(g_window, title);
 }

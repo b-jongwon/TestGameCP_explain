@@ -9,6 +9,12 @@
 
 #include "game.h"   // Stage, Player 구조체 정의 사용
 
+// SDL 기반 렌더러 초기화/해제 함수.
+// - init_renderer: SDL, 텍스처 로드, 윈도우 생성
+// - shutdown_renderer: 사용 중인 리소스 정리
+int init_renderer(void);
+void shutdown_renderer(void);
+
 // 전체 게임 화면을 그려주는 함수.
 // - 인자 stage: 현재 스테이지 상태 (맵, 장애물 위치 등)
 // - 인자 player: 현재 플레이어 상태 (위치, alive 여부)
