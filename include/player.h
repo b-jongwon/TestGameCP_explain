@@ -17,16 +17,10 @@
 // - 또한 p->alive = 1로 설정하여 플레이어를 "살아있는 상태"로 만듦.
 void init_player(Player *p, const Stage *stage);
 
-// 플레이어를 입력에 따라 이동시키는 함수.
-// - 인자 p: 현재 플레이어 상태.
-// - 인자 input: 사용자가 누른 키. 예: 'w', 'a', 's', 'd', 'q' 등.
-// - 인자 stage: 맵 정보와 장애물, 벽 등을 담고 있는 현재 스테이지.
-// - 내부에서 할 일 예시:
-//   1) 입력에 따라 임시로 새 좌표(nx, ny)를 계산.
-//   2) 그 위치가 맵 범위 내인지 검사.
-//   3) 벽(예: '#')이면 이동 취소.
-//   4) 장애물 위치와 겹치면 플레이어 사망 처리(p->alive = 0).
-//   5) 골 지점과 겹치면 클리어 플래그 설정 등.
-void move_player(Player *p, char input, const Stage *stage);
+// 현재 시간을 함께 받아 플레이어를 이동.
+void move_player(Player *p, char input, const Stage *stage, double current_time);
+
+// 입력이 없을 때 호출해 일정 시간 이후 스탠드 자세로 전환.
+void update_player_idle(Player *p, double current_time);
 
 #endif // PLAYER_H

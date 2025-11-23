@@ -22,13 +22,26 @@
 // - 스테이지 설계 시 장애물 개수를 이 값 이하로 제한해야 함.
 #define MAX_OBSTACLES 64
 
+// 플레이어가 바라보는 방향
+typedef enum {
+    PLAYER_FACING_DOWN = 0,
+    PLAYER_FACING_UP,
+    PLAYER_FACING_LEFT,
+    PLAYER_FACING_RIGHT,
+    PLAYER_FACING_COUNT
+} PlayerFacing;
+
 // Player 구조체
 // - 플레이어 캐릭터의 상태를 표현.
-// - 위치(x, y)와 생존 여부(alive) 정도의 심플한 정보만 들고 있음.
-// - 입력 처리, 충돌 판정, 렌더링에서 모두 사용.
+// - 위치(x, y)와 생존 여부 외에도 가방 보유 여부와 애니메이션 정보를 들고 있음.
 typedef struct {
-    int x, y;      // 플레이어의 현재 위치 (맵 좌표, 0 <= x < MAX_X, 0 <= y < MAX_Y)
-    int alive;     // 플레이어 생존 여부. 1 = 살아있음, 0 = 죽음(충돌, 탈락 등)
+    int x, y;          // 플레이어의 현재 위치 (맵 좌표)
+    int alive;         // 플레이어 생존 여부.
+    int has_backpack;  // 가방(G)을 획득했는지 여부
+    PlayerFacing facing; // 현재 바라보는 방향
+    int anim_step;     // 이동 중 프레임 토글 (0/1)
+    int is_moving;     // 1이면 이동 중, 0이면 정지 상태
+    double last_move_time; // 마지막으로 실제 이동한 시각(초)
 } Player;
 
 // Obstacle 구조체

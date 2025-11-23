@@ -8,19 +8,97 @@
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "../include/game.h"
 #include "render.h"
 
 #define TILE_SIZE 32
 
+typedef enum {
+    PLAYER_VARIANT_NORMAL = 0,
+    PLAYER_VARIANT_BACKPACK,
+    PLAYER_VARIANT_COUNT
+} PlayerVariant;
+
+typedef enum {
+    PLAYER_FRAME_STAND_A = 0,
+    PLAYER_FRAME_STAND_B,
+    PLAYER_FRAME_STEP_A,
+    PLAYER_FRAME_STEP_B,
+    PLAYER_FRAME_COUNT
+} PlayerFrame;
+
+typedef struct {
+    const char *stand_a;
+    const char *stand_b;
+    const char *step_a;
+    const char *step_b;
+} PlayerTextureSet;
+
+static const PlayerTextureSet PLAYER_TEXTURE_PATHS[PLAYER_VARIANT_COUNT][PLAYER_FACING_COUNT] = {
+    [PLAYER_VARIANT_NORMAL] = {
+        [PLAYER_FACING_DOWN] = {
+            "assets/image/player/foward_stand.png",
+            "assets/image/player/foward_stand.png",
+            "assets/image/player/foward_left.PNG",
+            "assets/image/player/foward_right.png"
+        },
+        [PLAYER_FACING_UP] = {
+            "assets/image/player/back_stand_1.PNG",
+            "assets/image/player/back_stand_2.png",
+            "assets/image/player/back_left.PNG",
+            "assets/image/player/back_right.PNG"
+        },
+        [PLAYER_FACING_LEFT] = {
+            "assets/image/player/left_stand.PNG",
+            "assets/image/player/left_stand.PNG",
+            "assets/image/player/left_left.png",
+            "assets/image/player/left_right.png"
+        },
+        [PLAYER_FACING_RIGHT] = {
+            "assets/image/player/right_stand.png",
+            "assets/image/player/right_stand.png",
+            "assets/image/player/right_left.PNG",
+            "assets/image/player/right_right.PNG"
+        }
+    },
+    [PLAYER_VARIANT_BACKPACK] = {
+        [PLAYER_FACING_DOWN] = {
+            "assets/image/player_backpack/foward_stand.png",
+            "assets/image/player_backpack/foward_stand.png",
+            "assets/image/player_backpack/foward_left.png",
+            "assets/image/player_backpack/foward_right.png"
+        },
+        [PLAYER_FACING_UP] = {
+            "assets/image/player_backpack/back_stand_1.png",
+            "assets/image/player_backpack/back_stand_2.png",
+            "assets/image/player_backpack/back_left.png",
+            "assets/image/player_backpack/back_right.png"
+        },
+        [PLAYER_FACING_LEFT] = {
+            "assets/image/player_backpack/left_stand.PNG",
+            "assets/image/player_backpack/left_stand.PNG",
+            "assets/image/player_backpack/left_left.png",
+            "assets/image/player_backpack/left_right.png"
+        },
+        [PLAYER_FACING_RIGHT] = {
+            "assets/image/player_backpack/right_stand.png",
+            "assets/image/player_backpack/right_stand.png",
+            "assets/image/player_backpack/right_left.png",
+            "assets/image/player_backpack/right_right.png"
+        }
+    }
+};
+
 static SDL_Window *g_window = NULL;
 static SDL_Renderer *g_renderer = NULL;
 static SDL_Texture *g_tex_floor = NULL;
 static SDL_Texture *g_tex_wall = NULL;
 static SDL_Texture *g_tex_goal = NULL;
-static SDL_Texture *g_tex_player = NULL;
 static SDL_Texture *g_tex_professor = NULL;
+static SDL_Texture *g_tex_exit = NULL;
+static SDL_Texture *g_player_textures[PLAYER_VARIANT_COUNT][PLAYER_FACING_COUNT][PLAYER_FRAME_COUNT] = {{{NULL}}};
 static int g_window_w = 0;
 static int g_window_h = 0;
 
@@ -103,12 +181,34 @@ int init_renderer(void)
     g_tex_floor = load_texture("assets/image/floor64.png");
     g_tex_wall = load_texture("assets/image/wall64.png");
     g_tex_goal = load_texture("assets/image/backpack64.png");
-    g_tex_player = load_texture("assets/image/player64.png");
     g_tex_professor = load_texture("assets/image/professor64.png");
+    g_tex_exit = load_texture("assets/image/exit.PNG");
 
-    if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_player || !g_tex_professor)
+    if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor || !g_tex_exit)
     {
         return -1;
+    }
+
+    for (int variant = 0; variant < PLAYER_VARIANT_COUNT; variant++)
+    {
+        for (int facing = 0; facing < PLAYER_FACING_COUNT; facing++)
+        {
+            const PlayerTextureSet *set = &PLAYER_TEXTURE_PATHS[variant][facing];
+            const char *paths[PLAYER_FRAME_COUNT] = {
+                set->stand_a,
+                set->stand_b,
+                set->step_a,
+                set->step_b
+            };
+            for (int frame = 0; frame < PLAYER_FRAME_COUNT; frame++)
+            {
+                g_player_textures[variant][facing][frame] = load_texture(paths[frame]);
+                if (!g_player_textures[variant][facing][frame])
+                {
+                    return -1;
+                }
+            }
+        }
     }
 
     return 0;
@@ -119,8 +219,19 @@ void shutdown_renderer(void)
     destroy_texture(&g_tex_floor);
     destroy_texture(&g_tex_wall);
     destroy_texture(&g_tex_goal);
-    destroy_texture(&g_tex_player);
     destroy_texture(&g_tex_professor);
+    destroy_texture(&g_tex_exit);
+
+    for (int variant = 0; variant < PLAYER_VARIANT_COUNT; variant++)
+    {
+        for (int facing = 0; facing < PLAYER_FACING_COUNT; facing++)
+        {
+            for (int frame = 0; frame < PLAYER_FRAME_COUNT; frame++)
+            {
+                destroy_texture(&g_player_textures[variant][facing][frame]);
+            }
+        }
+    }
 
     if (g_renderer)
     {
@@ -192,11 +303,16 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             char cell = stage->map[y][x];
             SDL_Texture *base = texture_for_cell(cell);
             draw_texture(base, x, y);
-            if (cell == 'G')
+            if (cell == 'G' && !player->has_backpack)
             {
                 draw_texture(g_tex_goal, x, y);
             }
         }
+    }
+
+    if (player->has_backpack)
+    {
+        draw_texture(g_tex_exit, stage->start_x, stage->start_y);
     }
 
     for (int i = 0; i < stage->num_obstacles; i++)
@@ -205,12 +321,42 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         draw_texture(g_tex_professor, o.x, o.y);
     }
 
-    draw_texture(g_tex_goal, stage->goal_x, stage->goal_y);
-    draw_texture(g_tex_player, player->x, player->y);
+    PlayerFacing facing = player->facing;
+    if (facing < 0 || facing >= PLAYER_FACING_COUNT)
+    {
+        facing = PLAYER_FACING_DOWN;
+    }
+
+    int variant = player->has_backpack ? PLAYER_VARIANT_BACKPACK : PLAYER_VARIANT_NORMAL;
+    int frame = PLAYER_FRAME_STAND_A;
+    if (player->is_moving)
+    {
+        frame = player->anim_step ? PLAYER_FRAME_STEP_B : PLAYER_FRAME_STEP_A;
+    }
+    else if (facing == PLAYER_FACING_UP)
+    {
+        int toggle = ((int)floor(elapsed_time)) % 2;
+        frame = toggle ? PLAYER_FRAME_STAND_B : PLAYER_FRAME_STAND_A;
+    }
+
+    SDL_Texture *player_tex = g_player_textures[variant][facing][frame];
+    if (!player_tex)
+    {
+        player_tex = g_player_textures[PLAYER_VARIANT_NORMAL][PLAYER_FACING_DOWN][PLAYER_FRAME_STAND_A];
+    }
+    draw_texture(player_tex, player->x, player->y);
 
     SDL_RenderPresent(g_renderer);
 
     char title[128];
-    snprintf(title, sizeof(title), "Stage %d/%d | Time %.2fs", current_stage, total_stages, elapsed_time);
+    if (player->has_backpack)
+    {
+        snprintf(title, sizeof(title), "Stage %d/%d | Time %.2fs | Return to Exit",
+                 current_stage, total_stages, elapsed_time);
+    }
+    else
+    {
+        snprintf(title, sizeof(title), "Stage %d/%d | Time %.2fs", current_stage, total_stages, elapsed_time);
+    }
     SDL_SetWindowTitle(g_window, title);
 }

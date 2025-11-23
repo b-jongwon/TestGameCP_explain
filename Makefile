@@ -11,7 +11,7 @@ SDL_LDLIBS = -lSDL2
 endif
 
 CFLAGS = -Wall -I./include $(SDL_CFLAGS) -pthread
-LDFLAGS = $(SDL_LDLIBS) -lSDL2_image -pthread
+LDFLAGS = $(SDL_LDLIBS) -lSDL2_image -pthread -lm
 
 SRC = $(wildcard src/*.c)
 OBJ = $(SRC:.c=.o)

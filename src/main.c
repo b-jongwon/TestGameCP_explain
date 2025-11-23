@@ -67,6 +67,12 @@ int main(void)
             double elapsed = get_elapsed_time(stage_start, now);
 
             pthread_mutex_lock(&g_stage_mutex);
+            if (!player.has_backpack &&
+                player.x == stage.goal_x && player.y == stage.goal_y)
+            {
+                player.has_backpack = 1;
+                stage.map[stage.goal_y][stage.goal_x] = ' ';
+            }
             render(&stage, &player, elapsed, s, NUM_STAGES);
             pthread_mutex_unlock(&g_stage_mutex);
 
@@ -98,9 +104,15 @@ int main(void)
                 else
                 {
                     pthread_mutex_lock(&g_stage_mutex);
-                    move_player(&player, (char)key, &stage);
+                    move_player(&player, (char)key, &stage, elapsed);
                     pthread_mutex_unlock(&g_stage_mutex);
                 }
+            }
+            else
+            {
+                pthread_mutex_lock(&g_stage_mutex);
+                update_player_idle(&player, elapsed);
+                pthread_mutex_unlock(&g_stage_mutex);
             }
 
             usleep(10000);

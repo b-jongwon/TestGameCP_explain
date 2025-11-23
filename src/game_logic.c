@@ -20,9 +20,11 @@
  *   - 0: 아직 도달하지 못함
  */
 int is_goal_reached(const Stage *stage, const Player *player) {
-    // 좌표 비교: 동일하면 도착
-    return (player->x == stage->goal_x && 
-            player->y == stage->goal_y);
+    if (!stage || !player) return 0;
+    if (!player->has_backpack) return 0;
+
+    return (player->x == stage->start_x &&
+            player->y == stage->start_y);
 }
 
 
