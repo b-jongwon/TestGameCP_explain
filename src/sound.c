@@ -103,7 +103,7 @@ void play_sfx_nonblocking(const char *filePath)
         // 쉘 명령어를 실행하고 소리가 끝나면 즉시 종료
         char command[256];
         // &를 붙이면 비동기지만, system()을 사용하고 exit(0)로 마무리하는 것이 더 확실한 정리가 됩니다.
-        sprintf(command, "aplay -q %s 2> /dev/null", filePath);
+        sprintf(command, "aplay -q %s", filePath);
 
         system(command);
 

@@ -32,10 +32,10 @@ int main(void)
     }
 
     init_input();
-    const char *bgm_file_path = "bgm/ex_bgm.wav";               // bgm 파일 경로 설정
-    const char *gameover_bgm_path = "bgm/bgm_GameOut.wav";      // 장애물 게임오버 bgm 파일 경로 설정
-    const char *item_sound_path = "bgm/Get_Item.wav";           // 아이템 획득 사운드 파일 경로 설정
-    const char *item_use_sound_path = "bgm/Use_Item_short.wav"; // 아이템 사용 사운드 파일 경로 설정 (📢)
+    const char *bgm_file_path = "bgm/ex_bgm.wav";          // bgm 파일 경로 설정
+    const char *gameover_bgm_path = "bgm/bgm_GameOut.wav"; // 장애물 게임오버 bgm 파일 경로 설정
+    const char *item_sound_path = "bgm/Get_Item.wav";      // 아이템 획득 사운드 파일 경로 설정
+    const char *item_use_sound_path = "bgm/Use_Item.wav";  // 아이템 사용 사운드 파일 경로 설정
 
     struct timeval global_start, global_end;
     gettimeofday(&global_start, NULL);
@@ -122,31 +122,10 @@ int main(void)
                 {
                     pthread_mutex_lock(&g_stage_mutex);
                     fire_projectile(&stage, &player);
+                    play_sfx_nonblocking(item_use_sound_path); // 투사체 발사 사운드 재생 (논블로킹)
                     pthread_mutex_unlock(&g_stage_mutex);
                     continue; // 이동 처리와 겹치지 않게 skip
                 }
-
-                // 📢 --- 🔥 보호막 사용 ---
-                if (key == 'p' || key == 'P')
-                {
-                    pthread_mutex_lock(&g_stage_mutex);
-                    // 보호막 카운트가 1 이상일 때만 사용 가능
-                    if (player.shield_count > 0)
-                    {
-                        player.shield_count--;
-                        printf("Shield used! Remaining: (x%d)\n", player.shield_count);
-
-                        // ✅ [수정] 아이템 사용 사운드 재생 (논블로킹)
-                        play_sfx_nonblocking(item_use_sound_path);
-                    }
-                    else
-                    {
-                        printf("No shield to use!\n");
-                    }
-                    pthread_mutex_unlock(&g_stage_mutex);
-                    continue; // 이동 처리와 겹치지 않게 skip
-                }
-                // 📢 소리 여기까지
 
                 pthread_mutex_lock(&g_stage_mutex);
                 move_player(&player, (char)key, &stage, elapsed);
