@@ -30,8 +30,11 @@ int main(void)
     }
 
     init_input();
-    const char *bgm_file_path = "bgm/ex_bgm.wav";          // bgm 파일 경로 설정
-    const char *gameover_bgm_path = "bgm/bgm_GameOut.wav"; // 장애물 게임오버 bgm 파일 경로 설정
+    const char *bgm_file_path = "bgm/ex_bgm.wav";             // bgm 파일 경로 설정
+    const char *gameover_bgm_path = "bgm/bgm_GameOut.wav";    // 장애물 게임오버 bgm 파일 경로 설정
+    const char *item_sound_path = "bgm/Get_Item.wav";         // 아이템 획득 사운드 파일 경로 설정
+    const char *item_use_sound_path = "bgm/Use_Item.wav";     // 아이템 사용 사운드 파일 경로 설정
+    const char *next_level_sound_path = "bgm/Next_Level.wav"; // 스테이지 클리어, 다음 레벨 전환 사운드 파일 경로 설정
 
     struct timeval global_start, global_end;
     gettimeofday(&global_start, NULL);
@@ -55,9 +58,9 @@ int main(void)
 
         Player player;
         init_player(&player, &stage);
-        
+
         set_obstacle_player_ref(&player);
-        
+
         if (start_obstacle_thread(&stage) != 0)
         {
             fprintf(stderr, "Failed to start obstacle thread\n");
@@ -120,6 +123,7 @@ int main(void)
                 {
                     pthread_mutex_lock(&g_stage_mutex);
                     fire_projectile(&stage, &player);
+                    play_sfx_nonblocking(item_use_sound_path); // 투사체 발사 사운드 재생 (논블로킹)
                     pthread_mutex_unlock(&g_stage_mutex);
                     continue; // 이동 처리와 겹치지 않게 skip
                 }
@@ -147,6 +151,8 @@ int main(void)
                     it->active = 0;        // 아이템 비활성화 (맵에서 사라짐)
                     player.shield_count++; // 보호막 1개 획득
                     printf("Shield acquired! (x%d)\n", player.shield_count);
+
+                    play_sfx_nonblocking(item_sound_path); // 아이템 획득 사운드 재생 (Non-blocking)
                 }
             }
             pthread_mutex_unlock(&g_stage_mutex);
@@ -175,6 +181,8 @@ int main(void)
 
         if (stage_cleared)
         {
+            play_sfx_nonblocking(next_level_sound_path); // 다음 레벨 전환 사운드 재생 (논블로킹)
+
             printf("Stage %d Cleared!\n", s);
             fflush(stdout);
             sleep(1);
