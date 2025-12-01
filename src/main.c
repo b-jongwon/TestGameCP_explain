@@ -36,6 +36,7 @@ int main(void)
     const char *item_use_sound_path = "bgm/Use_Item.wav";     // 아이템 사용 사운드 파일 경로 설정
     const char *next_level_sound_path = "bgm/Next_Level.wav"; // 스테이지 클리어, 다음 레벨 전환 사운드 파일 경로 설정
     const char *bag_acquire_sound_path = "bgm/Get_Bag.wav";   // 가방 획득 사운드 파일 경로 설정
+    const char *walking_sound_path = "bgm/Walking.wav";       // 걷기 사운드 파일 경로 설정
 
     struct timeval global_start, global_end;
     gettimeofday(&global_start, NULL);
@@ -133,6 +134,9 @@ int main(void)
 
                 pthread_mutex_lock(&g_stage_mutex);
                 move_player(&player, (char)key, &stage, elapsed);
+
+                play_sfx_nonblocking(walking_sound_path); // 걷기 사운드 재생 (논블로킹)
+
                 pthread_mutex_unlock(&g_stage_mutex);
             }
             else
