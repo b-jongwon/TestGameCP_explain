@@ -24,5 +24,6 @@
 //   }
 //   이런 식으로 사용.
 int load_stage(Stage *stage, int stage_id);
+int get_stage_count(void);
 
 #endif // STAGE_H

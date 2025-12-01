@@ -17,12 +17,31 @@
 //
 
 #include <stdio.h>  // fopen, fgets, FILE, perror
-#include <string.h> // memset, strlen, snprintf
+#include <string.h> // memset, strlen, snprintf, strncpy
 
 // ⚠️ 너가 절대 경로 include를 쓰는 이유는 아마 빌드 include 경로 문제 때문.
 //    지금은 일단 유지하되, 나중엔 -I 옵션으로 바꾸는 게 좋음.
 #include "../include/game.h"
 #include "../include/stage.h"
+
+typedef struct
+{
+    const char *filename;
+    const char *name;
+} StageFileInfo;
+
+static const StageFileInfo kStageFiles[] = {
+    {"b1.map", "B1"},
+    {"1f.map", "1F"},
+    {"2f.map", "2F"},
+    {"3f.map", "3F"},
+    {"4f.map", "4F"},
+    {"5f.map", "5F"}};
+
+int get_stage_count(void)
+{
+    return (int)(sizeof(kStageFiles) / sizeof(kStageFiles[0]));
+}
 
 // --------------------------------------------------------------
 // load_stage()
@@ -37,7 +56,7 @@
 //
 // 작동 원리:
 //   [1] Stage 구조체를 0으로 초기화
-//   [2] 파일 이름 "assets/stage%d.map" 생성
+//   [2] 스테이지 순서 테이블에서 파일명을 찾아온다
 //   [3] 파일 열기
 //   [4] 파일의 각 줄을 읽으며:
 //         - 가장 긴 줄 길이(max_width)를 측정
@@ -52,6 +71,19 @@
 int load_stage(Stage *stage, int stage_id)
 {
 
+    if (!stage)
+    {
+        return -1;
+    }
+
+    if (stage_id < 1 || stage_id > get_stage_count())
+    {
+        fprintf(stderr, "Invalid stage id: %d\n", stage_id);
+        return -1;
+    }
+
+    const StageFileInfo *info = &kStageFiles[stage_id - 1];
+
     // ----------------------------------------------------------
     // 1) Stage 구조체 전체 초기화
     // ----------------------------------------------------------
@@ -61,10 +93,12 @@ int load_stage(Stage *stage, int stage_id)
 
     // ----------------------------------------------------------
     // 2) 스테이지 파일 이름 생성
-    //    예: stage_id=1 → "assets/stage1.map"
+    //    예: stage_id=1 → "assets/b1.map"
     // ----------------------------------------------------------
     char filename[64];
-    snprintf(filename, sizeof(filename), "assets/scaled_it5_%df.map", stage_id);
+    snprintf(filename, sizeof(filename), "assets/%s", info->filename);
+    strncpy(stage->name, info->name, sizeof(stage->name) - 1);
+    stage->name[sizeof(stage->name) - 1] = '\0';
     // main 에서 stage_id는 계속 갱신
 
     // ----------------------------------------------------------

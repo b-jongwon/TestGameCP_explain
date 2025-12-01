@@ -41,7 +41,7 @@ make
 
 ## 기능 요약
 
-- 5개의 스테이지 (`assets/scaled_it5_*f.map`)
+- 6개의 스테이지 (`assets/b1.map`, `assets/1f.map`, `assets/2f.map`, `assets/3f.map`, `assets/4f.map`, `assets/5f.map`) — 진행 순서: B1 → 1F → 2F → 3F → 4F → 5F
 - SDL2 기반 이미지 렌더링 (floor/wall/player/professor/backpack/exit 텍스처)
 - 방향/동작별 플레이어 애니메이션 (가방 유무에 따라 다른 시트 사용)
 - 움직이는 장애물(X)에 닿으면 게임 오버

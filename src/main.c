@@ -19,8 +19,6 @@
 extern int is_goal_reached(const Stage *stage, const Player *player);
 extern int check_collision(Stage *stage, Player *player);
 
-#define NUM_STAGES 6
-
 int main(void)
 {
     setup_signal_handlers();
@@ -45,7 +43,9 @@ int main(void)
 
     play_bgm(bgm_file_path, 1); // BGM 재생 시작 (Non-blocking)
 
-    for (int s = 1; s <= NUM_STAGES && g_running; s++)
+    const int total_stages = get_stage_count();
+
+    for (int s = 1; s <= total_stages && g_running; s++)
     {
         Stage stage;
         if (load_stage(&stage, s) != 0)
@@ -87,7 +87,7 @@ int main(void)
                 player.has_backpack = 1;
                 stage.map[stage.goal_y][stage.goal_x] = ' ';
             }
-            render(&stage, &player, elapsed, s, NUM_STAGES);
+            render(&stage, &player, elapsed, s, total_stages);
             pthread_mutex_unlock(&g_stage_mutex);
 
             pthread_mutex_lock(&g_stage_mutex);

@@ -62,8 +62,9 @@ static SDL_Texture *g_tex_spinner = NULL;     // R (스피너)
 static SDL_Texture *g_tex_obstacle = NULL;    // X (일반 장애물)
 
 
-static SDL_Texture *g_tex_item_shield = NULL; // 아이템
+static SDL_Texture *g_tex_item_shield = NULL; // 필드에 놓인 쉴드 아이템(I)
 static SDL_Texture *g_tex_projectile = NULL;  // 투사체
+static SDL_Texture *g_tex_shield_on = NULL;   // 플레이어 보호막 활성화
 
 static SDL_Texture *g_tex_exit = NULL;
 
@@ -98,6 +99,42 @@ static void destroy_texture(SDL_Texture **texture)
         SDL_DestroyTexture(*texture);
         *texture = NULL;
     }
+}
+
+static void draw_texture_with_pixel_offset(SDL_Texture *texture, int x, int y, int offset_x, int offset_y)
+{
+    if (!texture)
+    {
+        return;
+    }
+
+    SDL_Rect dst = {x * TILE_SIZE + offset_x, y * TILE_SIZE + offset_y, TILE_SIZE, TILE_SIZE};
+    SDL_RenderCopy(g_renderer, texture, NULL, &dst);
+}
+
+static void draw_texture_scaled(SDL_Texture *texture, int x, int y, double scale)
+{
+    if (!texture)
+    {
+        return;
+    }
+
+    const int width = (int)lround(TILE_SIZE * scale);
+    const int height = (int)lround(TILE_SIZE * scale);
+
+    const int offset_x = (TILE_SIZE - width) / 2;
+    const int offset_y = (TILE_SIZE - height) / 2;
+
+    SDL_Rect dst = {x * TILE_SIZE + offset_x, y * TILE_SIZE + offset_y, width, height};
+    SDL_RenderCopy(g_renderer, texture, NULL, &dst);
+}
+
+static int compute_vertical_bounce_offset(double elapsed_time)
+{
+    const double speed = 6.0;
+    const double amplitude = 2.0;
+    double wave = sin(elapsed_time * speed);
+    return (int)lround(wave * amplitude);
 }
 
 int init_renderer(void)
@@ -155,12 +192,13 @@ int init_renderer(void)
     g_tex_professor = load_texture("assets/image/한명균교수님.png");
     g_tex_obstacle = load_texture("assets/image/professor64.png");    // X (일반)
     g_tex_spinner = load_texture("assets/image/professor64.png");     // R (스피너)
-    
 
-    g_tex_item_shield = load_texture("assets/image/professor64.png"); // 아이템 임시 렌더링
+
+    g_tex_item_shield = load_texture("assets/image/shield64.png");   // I 아이템 전용 텍스처
     g_tex_projectile = load_texture("assets/image/professor64.png");  // 투사체 임시 렌더링
+    g_tex_shield_on = load_texture("assets/image/shieldon64.png");    // 보호막 활성화 표현
 
-    if (!g_tex_projectile)
+    if (!g_tex_projectile || !g_tex_item_shield || !g_tex_shield_on)
         return -1;
 
     if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor || !g_tex_exit)
@@ -204,6 +242,7 @@ void shutdown_renderer(void)
     destroy_texture(&g_tex_spinner);     // 도는 장애물
     destroy_texture(&g_tex_item_shield); // 아이템 렌더링 셧다운
     destroy_texture(&g_tex_projectile);  // 투사체 셧다운
+    destroy_texture(&g_tex_shield_on);   // 플레이어 보호막 텍스처
     
 
     for (int variant = 0; variant < PLAYER_VARIANT_COUNT; variant++)
@@ -287,16 +326,17 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             char cell = stage->map[y][x];
             SDL_Texture *base = texture_for_cell(cell);
             draw_texture(base, x, y);
-            if (cell == 'G' && !player->has_backpack)
-            {
-                draw_texture(g_tex_goal, x, y);
-            }
         }
     }
 
     if (player->has_backpack)
     {
         draw_texture(g_tex_exit, stage->start_x, stage->start_y);
+    }
+    else
+    {
+        int offset_y = compute_vertical_bounce_offset(elapsed_time);
+        draw_texture_with_pixel_offset(g_tex_goal, stage->goal_x, stage->goal_y, 0, offset_y);
     }
 
     for (int i = 0; i < stage->num_obstacles; i++)
@@ -333,7 +373,8 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         const Item *it = &stage->items[i];
         if (it->active)
         {
-            draw_texture(g_tex_item_shield, it->x, it->y);
+            int offset_y = compute_vertical_bounce_offset(elapsed_time);
+            draw_texture_with_pixel_offset(g_tex_item_shield, it->x, it->y, 0, offset_y);
         }
     } // 아이템 렌더링
 
@@ -370,6 +411,11 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         player_tex = g_player_textures[PLAYER_VARIANT_NORMAL][PLAYER_FACING_DOWN][PLAYER_FRAME_STAND_A];
     }
     draw_texture(player_tex, player->x, player->y);
+
+    if (player->shield_count > 0 && g_tex_shield_on)
+    {
+        draw_texture_scaled(g_tex_shield_on, player->x, player->y, 1.2);
+    }
 
     SDL_RenderPresent(g_renderer);
 

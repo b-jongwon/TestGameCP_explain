@@ -15,6 +15,7 @@ LDFLAGS = $(SDL_LDLIBS) -lSDL2_image -pthread -lm
 
 SRC = $(wildcard src/*.c)
 OBJ = $(SRC:.c=.o)
+DEP = $(OBJ:.o=.d)
 
 TARGET = game
 
@@ -24,8 +25,13 @@ $(TARGET): $(OBJ)
 	@mkdir -p bin
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
+src/%.o: src/%.c
+	$(CC) $(CFLAGS) -MMD -MP -c -o $@ $<
+
 clean:
-	rm -f $(OBJ) $(TARGET)
+	rm -f $(OBJ) $(DEP) $(TARGET)
 
 run: all
 	./$(TARGET)
+
+-include $(DEP)
