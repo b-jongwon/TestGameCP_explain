@@ -17,6 +17,9 @@
 // - 터미널 화면에서 y 좌표 범위, 플레이어 이동, 장애물 이동, 맵 출력에 사용.
 #define MAX_Y 100
 
+#define SUBPIXELS_PER_TILE 10
+#define PLAYER_MOVE_STEP_SUBPIXELS 2
+
 // 한 스테이지에서 허용하는 최대 장애물 개수.
 // - Stage.obstacles 배열의 크기.
 // - 스테이지 설계 시 장애물 개수를 이 값 이하로 제한해야 함.
@@ -62,6 +65,11 @@ typedef enum {
 // - 위치(x, y)와 생존 여부 외에도 가방 보유 여부와 애니메이션 정보를 들고 있음.
 typedef struct {
     int x, y;          // 플레이어의 현재 위치 (맵 좌표)
+    int world_x, world_y; // SUBPIXELS_PER_TILE 기준 세분화 좌표
+    int target_world_x, target_world_y;
+    double move_speed;   // 초당 이동하는 서브픽셀 수
+    double move_accumulator; // 프레임 간 남은 이동량(서브픽셀)
+    int moving;          // 이동 중 여부
     int alive;         // 플레이어 생존 여부.
     int has_backpack;  // 가방(G)을 획득했는지 여부
     PlayerFacing facing; // 현재 바라보는 방향
@@ -98,6 +106,12 @@ typedef struct {
     ObstacleKind kind;  // 장애물 역할 종류 (linear / spinner / professor)
     int hp;             // 체력 (투사체에 맞으면 감소)
     int active;         // 1: 활성, 0: 비활성(죽은 상태)
+
+    int world_x, world_y;          // 서브픽셀 좌표
+    int target_world_x, target_world_y;
+    double move_speed;             // 초당 이동할 서브픽셀 (선형형에 사용)
+    double move_accumulator;       // 남은 이동량(서브픽셀)
+    int moving;                    // 이동 중 여부
 
     // 회전형(spinner) 장애물용 필드
     int center_x, center_y;  // 회전 중심 좌표

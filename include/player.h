@@ -23,4 +23,13 @@ void move_player(Player *p, char input, const Stage *stage, double current_time)
 // 입력이 없을 때 호출해 일정 시간 이후 스탠드 자세로 전환.
 void update_player_idle(Player *p, double current_time);
 
+// 프레임 간 경과 시간을 이용해 선형 이동을 갱신.
+int update_player_motion(Player *p, double delta_time);
+
+// 서브픽셀 좌표(world_x/world_y) 기반으로 플레이어 박스를 침범했는지 판정.
+int is_world_point_inside_player(const Player *player, int world_x, int world_y);
+
+// 타일 좌표의 중심이 플레이어 박스를 침범했는지 판정.
+int is_tile_center_inside_player(const Player *player, int tile_x, int tile_y);
+
 #endif // PLAYER_H

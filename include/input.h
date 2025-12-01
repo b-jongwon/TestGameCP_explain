@@ -24,4 +24,7 @@ int read_input(void);
 //   예: int ch = poll_input(); if (ch == 'w') 위로 이동, 등.
 int poll_input(void); // returns -1 if no key, otherwise char
 
+// 현재 눌려있는 방향키/wasd 상태를 조사하여 연속 이동을 위한 입력 반환.
+int current_direction_key(void);
+
 #endif // INPUT_H

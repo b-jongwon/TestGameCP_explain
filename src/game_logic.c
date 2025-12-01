@@ -25,8 +25,7 @@ int is_goal_reached(const Stage *stage, const Player *player) {
     if (!stage || !player) return 0;
     if (!player->has_backpack) return 0;
 
-    return (player->x == stage->start_x &&
-            player->y == stage->start_y);
+    return is_tile_center_inside_player(player, stage->start_x, stage->start_y);
 }
 
 
@@ -56,7 +55,9 @@ int check_collision(Stage *stage, Player *player) {
         Obstacle *o = &stage->obstacles[i];
         if (!o->active) continue;
 
-        if (o->x == player->x && o->y == player->y)
+        int center_x = o->world_x + SUBPIXELS_PER_TILE / 2;
+        int center_y = o->world_y + SUBPIXELS_PER_TILE / 2;
+        if (is_world_point_inside_player(player, center_x, center_y))
         {
             // 보호막이 있으면 충돌 무효화
             if (player->shield_count > 0)

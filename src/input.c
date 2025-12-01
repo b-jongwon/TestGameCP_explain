@@ -65,3 +65,24 @@ int poll_input(void)
 {
     return read_input();
 }
+
+int current_direction_key(void)
+{
+    SDL_PumpEvents();
+    const Uint8 *state = SDL_GetKeyboardState(NULL);
+    if (!state)
+    {
+        return -1;
+    }
+
+    if (state[SDL_SCANCODE_W] || state[SDL_SCANCODE_UP])
+        return 'w';
+    if (state[SDL_SCANCODE_S] || state[SDL_SCANCODE_DOWN])
+        return 's';
+    if (state[SDL_SCANCODE_A] || state[SDL_SCANCODE_LEFT])
+        return 'a';
+    if (state[SDL_SCANCODE_D] || state[SDL_SCANCODE_RIGHT])
+        return 'd';
+
+    return -1;
+}

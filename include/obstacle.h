@@ -37,6 +37,6 @@ void stop_obstacle_thread(void);
 // - 맵 경계에 부딪치면 dir을 반대로 바꾸거나, 특정 규칙에 따라 튕기도록 구현.
 // - 원래는 스레드 안에서 주기적으로 호출되지만,
 //   단일 스레드 환경에서 테스트할 때 직접 호출하도록 "공개"해둔 함수.
-void move_obstacles(Stage *stage); // also exposed for single-threaded test
+void move_obstacles(Stage *stage, double delta_time); // also exposed for single-threaded test
 
 #endif // OBSTACLE_H

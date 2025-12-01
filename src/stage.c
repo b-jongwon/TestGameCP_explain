@@ -171,6 +171,13 @@ int load_stage(Stage *stage, int stage_id)
 
                     o->x = x;
                     o->y = y;
+                    o->world_x = x * SUBPIXELS_PER_TILE;
+                    o->world_y = y * SUBPIXELS_PER_TILE;
+                    o->target_world_x = o->world_x;
+                    o->target_world_y = o->world_y;
+                    o->move_speed = SUBPIXELS_PER_TILE / 0.25;
+                    o->move_accumulator = 0.0;
+                    o->moving = 0;
                     o->dir = 1;
                     o->type = (stage_id + x + y) % 2; // 이동 방향(가로/세로) 랜덤성 부여
                     o->hp = 3;

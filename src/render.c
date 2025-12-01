@@ -112,7 +112,16 @@ static void draw_texture_with_pixel_offset(SDL_Texture *texture, int x, int y, i
     SDL_RenderCopy(g_renderer, texture, NULL, &dst);
 }
 
-static void draw_texture_scaled(SDL_Texture *texture, int x, int y, double scale)
+static void draw_texture_at_world(SDL_Texture *texture, double world_x, double world_y)
+{
+    if (!texture)
+        return;
+
+    SDL_Rect dst = {(int)lround(world_x * TILE_SIZE), (int)lround(world_y * TILE_SIZE), TILE_SIZE, TILE_SIZE};
+    SDL_RenderCopy(g_renderer, texture, NULL, &dst);
+}
+
+static void draw_texture_scaled(SDL_Texture *texture, double world_x, double world_y, double scale)
 {
     if (!texture)
     {
@@ -125,7 +134,10 @@ static void draw_texture_scaled(SDL_Texture *texture, int x, int y, double scale
     const int offset_x = (TILE_SIZE - width) / 2;
     const int offset_y = (TILE_SIZE - height) / 2;
 
-    SDL_Rect dst = {x * TILE_SIZE + offset_x, y * TILE_SIZE + offset_y, width, height};
+    SDL_Rect dst = {(int)lround(world_x * TILE_SIZE) + offset_x,
+                    (int)lround(world_y * TILE_SIZE) + offset_y,
+                    width,
+                    height};
     SDL_RenderCopy(g_renderer, texture, NULL, &dst);
 }
 
@@ -364,7 +376,9 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
 
         if (tex_to_draw)
         {
-            draw_texture(tex_to_draw, o->x, o->y);
+            double obstacle_world_x = (double)o->world_x / SUBPIXELS_PER_TILE;
+            double obstacle_world_y = (double)o->world_y / SUBPIXELS_PER_TILE;
+            draw_texture_at_world(tex_to_draw, obstacle_world_x, obstacle_world_y);
         }
     }
 
@@ -410,11 +424,13 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     {
         player_tex = g_player_textures[PLAYER_VARIANT_NORMAL][PLAYER_FACING_DOWN][PLAYER_FRAME_STAND_A];
     }
-    draw_texture(player_tex, player->x, player->y);
+    double player_world_x = (double)player->world_x / SUBPIXELS_PER_TILE;
+    double player_world_y = (double)player->world_y / SUBPIXELS_PER_TILE;
+    draw_texture_at_world(player_tex, player_world_x, player_world_y);
 
     if (player->shield_count > 0 && g_tex_shield_on)
     {
-        draw_texture_scaled(g_tex_shield_on, player->x, player->y, 1.2);
+        draw_texture_scaled(g_tex_shield_on, player_world_x, player_world_y, 1.2);
     }
 
     SDL_RenderPresent(g_renderer);

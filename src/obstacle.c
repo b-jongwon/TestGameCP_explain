@@ -6,6 +6,7 @@
 #include "../include/obstacle.h"       // move_obstacles, start/stop 함수 선언 및 g_stage_mutex extern
 #include "../include/game.h"           // Stage, Obstacle, MAX_X, MAX_Y 등
 #include "../include/signal_handler.h" // g_running 전역 플래그
+#include "../include/collision.h"
 
 // 전역 뮤텍스 정의.
 // - obstacle.h에 extern으로 선언되어 있고,
@@ -32,6 +33,9 @@ void set_obstacle_player_ref(const Player *p)
     g_player_ref = p;
 }
 
+static void sync_obstacle_tile_position(Obstacle *o);
+static int try_move_obstacle(Obstacle *o, Stage *stage, int delta_world_x, int delta_world_y);
+
 // ----------------------------------------------------------
 // 내부 헬퍼 함수 1: 스피너 이동 로직
 // ----------------------------------------------------------
@@ -55,6 +59,8 @@ static void update_spinner(Obstacle *o, Stage *stage)
         {
             o->x = nx;
             o->y = ny;
+            o->world_x = nx * SUBPIXELS_PER_TILE;
+            o->world_y = ny * SUBPIXELS_PER_TILE;
         }
     }
 
@@ -65,7 +71,7 @@ static void update_spinner(Obstacle *o, Stage *stage)
 // ----------------------------------------------------------
 // 내부 헬퍼 함수 2: 교수님 AI (추격) 로직
 // ----------------------------------------------------------
-static void update_professor(Obstacle *o, Stage *stage)
+static void update_professor(Obstacle *o, Stage *stage, double delta_time)
 {
     if (!g_player_ref)
         return; // 플레이어 정보 없으면 아무것도 안 함
@@ -85,58 +91,111 @@ static void update_professor(Obstacle *o, Stage *stage)
         o->alert = 0; // 놓침 (또는 원래대로)
     }
 
-    int nx = o->x;
-    int ny = o->y;
+    if (delta_time < 0.0)
+        delta_time = 0.0;
 
-    if (o->alert)
+    o->move_accumulator += o->move_speed * delta_time;
+    int pixels_to_move = (int)floor(o->move_accumulator);
+    if (pixels_to_move <= 0)
+        return;
+    if (pixels_to_move > SUBPIXELS_PER_TILE)
+        pixels_to_move = SUBPIXELS_PER_TILE;
+    o->move_accumulator -= pixels_to_move;
+
+    const int tile_size = SUBPIXELS_PER_TILE;
+    for (int step = 0; step < pixels_to_move; ++step)
     {
-        // [추격 모드]
-        // X축 차이가 더 크면 X축으로, 아니면 Y축으로 이동 시도
-        if (abs(dx) > abs(dy))
+        if (o->alert)
         {
-            nx += (dx > 0) ? 1 : -1;
+            int player_center_x = g_player_ref->world_x + tile_size / 2;
+            int player_center_y = g_player_ref->world_y + tile_size / 2;
+            int obstacle_center_x = o->world_x + tile_size / 2;
+            int obstacle_center_y = o->world_y + tile_size / 2;
+
+            int diff_x = player_center_x - obstacle_center_x;
+            int diff_y = player_center_y - obstacle_center_y;
+            int step_x = 0;
+            int step_y = 0;
+
+            if (abs(diff_x) >= abs(diff_y) && diff_x != 0)
+            {
+                step_x = (diff_x > 0) ? 1 : -1;
+            }
+            else if (diff_y != 0)
+            {
+                step_y = (diff_y > 0) ? 1 : -1;
+            }
+
+            if (step_x != 0)
+            {
+                if (!try_move_obstacle(o, stage, step_x, 0))
+                {
+                    if (diff_y != 0)
+                    {
+                        step_y = (diff_y > 0) ? 1 : -1;
+                        if (!try_move_obstacle(o, stage, 0, step_y))
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            else if (step_y != 0)
+            {
+                if (!try_move_obstacle(o, stage, 0, step_y))
+                {
+                    if (diff_x != 0)
+                    {
+                        step_x = (diff_x > 0) ? 1 : -1;
+                        if (!try_move_obstacle(o, stage, step_x, 0))
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                break; // 이미 같은 위치
+            }
         }
         else
         {
-            ny += (dy > 0) ? 1 : -1;
-        }
-
-        // 만약 가려는 곳이 벽이라면? (간단한 장애물 회피)
-        if (stage->map[ny][nx] == '#')
-        {
-            // 막혔으니 다른 축으로 이동 시도
-            if (nx != o->x)
-            { // 원래 X로 가려다 막힘 -> Y로 변경
-                nx = o->x;
-                ny += (dy > 0) ? 1 : -1;
+            int dir = (o->dir == 0) ? 1 : o->dir;
+            int moved = 0;
+            if (o->type == 0)
+            {
+                moved = try_move_obstacle(o, stage, dir, 0);
             }
             else
-            { // 원래 Y로 가려다 막힘 -> X로 변경
-                ny = o->y;
-                nx += (dx > 0) ? 1 : -1;
+            {
+                moved = try_move_obstacle(o, stage, 0, dir);
+            }
+
+            if (!moved)
+            {
+                o->dir *= -1;
+                dir = (o->dir == 0) ? 1 : o->dir;
+                if (o->type == 0)
+                {
+                    if (!try_move_obstacle(o, stage, dir, 0))
+                        break;
+                }
+                else
+                {
+                    if (!try_move_obstacle(o, stage, 0, dir))
+                        break;
+                }
             }
         }
-    }
-    else
-    {
-        // [순찰 모드]
-        // 기존 선형(Linear) 이동 로직을 재사용하거나, 랜덤 배회
-        // 여기서는 기존 코드를 약간 변형해 "좌우 순찰"을 한다고 가정
-        nx += o->dir;
-
-        // 경계나 벽 만나면 방향 반전
-        if (nx <= 1 || nx >= MAX_X - 2 || stage->map[o->y][nx] == '#')
-        {
-            o->dir *= -1;
-            nx = o->x + o->dir; // 반대 방향으로 재설정
-        }
-    }
-
-    // 최종 위치 반영 (벽 체크 한 번 더 안전하게)
-    if (stage->map[ny][nx] != '#')
-    {
-        o->x = nx;
-        o->y = ny;
     }
 }
 // ----------------------------------------------------------
@@ -145,8 +204,11 @@ static void update_professor(Obstacle *o, Stage *stage)
 // 스테이지 내의 모든 장애물을 한 번씩 이동시키는 함수.
 // - 각 장애물의 type(0: 수평, 1: 수직)과 dir(+1 / -1)을 사용해 한 칸 이동.
 // - 맵 경계나 벽('@')에 닿으면 방향을 반대로 뒤집는다.
-void move_obstacles(Stage *stage)
+void move_obstacles(Stage *stage, double delta_time)
 {
+    if (delta_time < 0.0)
+        delta_time = 0.0;
+
     for (int i = 0; i < stage->num_obstacles; i++)
     {
         Obstacle *o = &stage->obstacles[i];
@@ -160,29 +222,58 @@ void move_obstacles(Stage *stage)
             break;
 
         case OBSTACLE_KIND_PROFESSOR:
-            update_professor(o, stage);
+            update_professor(o, stage, delta_time);
             break;
 
         case OBSTACLE_KIND_LINEAR:
         default:
-            // 기존 선형 이동 로직 유지
-            if (o->type == 0)
-            { // 가로
-                o->x += o->dir;
-                if (o->x <= 1 || o->x >= MAX_X - 2 || stage->map[o->y][o->x] == '#')
+            o->move_accumulator += o->move_speed * delta_time;
+            int step_pixels = (int)floor(o->move_accumulator);
+            if (step_pixels <= 0)
+                break;
+
+            o->move_accumulator -= step_pixels;
+            int total_moved = 0;
+            const int max_step = SUBPIXELS_PER_TILE;
+            while (total_moved < step_pixels)
+            {
+                int move = o->dir;
+                if (move == 0)
+                    move = 1;
+                move *= 1;
+
+                int applied = 0;
+                if (o->type == 0)
+                {
+                    applied = try_move_obstacle(o, stage, move, 0);
+                }
+                else
+                {
+                    applied = try_move_obstacle(o, stage, 0, move);
+                }
+
+                if (!applied)
                 {
                     o->dir *= -1;
-                    o->x += o->dir;
+                    if (o->type == 0)
+                    {
+                        if (!try_move_obstacle(o, stage, o->dir, 0))
+                        {
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        if (!try_move_obstacle(o, stage, 0, o->dir))
+                        {
+                            break;
+                        }
+                    }
                 }
-            }
-            else
-            { // 세로
-                o->y += o->dir;
-                if (o->y <= 1 || o->y >= MAX_Y - 2 || stage->map[o->y][o->x] == '#')
-                {
-                    o->dir *= -1;
-                    o->y += o->dir;
-                }
+
+                total_moved += (applied ? 1 : 0);
+                if (total_moved >= max_step)
+                    break;
             }
             break;
         }
@@ -200,8 +291,16 @@ static void *obstacle_thread_func(void *arg)
 {
     (void)arg; // 인자를 사용하지 않으므로 경고 방지용 캐스팅
 
+    struct timespec prev_ts;
+    clock_gettime(CLOCK_MONOTONIC, &prev_ts);
+
     while (g_running && g_thread_running)
     {
+        struct timespec now_ts;
+        clock_gettime(CLOCK_MONOTONIC, &now_ts);
+        double delta_time = (now_ts.tv_sec - prev_ts.tv_sec) +
+                            (now_ts.tv_nsec - prev_ts.tv_nsec) / 1e9;
+        prev_ts = now_ts;
 
         // 스테이지 데이터 보호를 위해 mutex lock
         pthread_mutex_lock(&g_stage_mutex);
@@ -209,14 +308,14 @@ static void *obstacle_thread_func(void *arg)
         if (g_stage)
         {
             // 현재 스테이지에 대해 장애물 한 번씩 이동
-            move_obstacles(g_stage);
+            move_obstacles(g_stage, delta_time);
         }
 
         // 임계구역 끝
         pthread_mutex_unlock(&g_stage_mutex);
 
         // 120ms 정도 대기 → 장애물 이동 속도 결정
-        usleep(120000);
+        usleep(20000);
     }
 
     return NULL; // 스레드 종료
@@ -270,4 +369,29 @@ void stop_obstacle_thread(void)
 
     // 현재 스테이지 참조 제거
     g_stage = NULL;
+}
+static void sync_obstacle_tile_position(Obstacle *o)
+{
+    if (!o)
+        return;
+    o->x = o->world_x / SUBPIXELS_PER_TILE;
+    o->y = o->world_y / SUBPIXELS_PER_TILE;
+}
+
+static int try_move_obstacle(Obstacle *o, Stage *stage, int delta_world_x, int delta_world_y)
+{
+    if (!o || !stage)
+        return 0;
+
+    int new_world_x = o->world_x + delta_world_x;
+    int new_world_y = o->world_y + delta_world_y;
+    if (is_world_position_blocked(stage, new_world_x, new_world_y, NULL))
+    {
+        return 0;
+    }
+
+    o->world_x = new_world_x;
+    o->world_y = new_world_y;
+    sync_obstacle_tile_position(o);
+    return 1;
 }

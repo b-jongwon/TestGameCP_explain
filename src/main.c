@@ -71,24 +71,48 @@ int main(void)
 
         struct timeval stage_start, now;
         gettimeofday(&stage_start, NULL);
+        double previous_elapsed = 0.0;
 
         int stage_cleared = 0;
         int stage_failed = 0;
 
         while (g_running)
         {
+            struct timespec frame_start_ts;
+            clock_gettime(CLOCK_MONOTONIC, &frame_start_ts);
+
             gettimeofday(&now, NULL);
             double elapsed = get_elapsed_time(stage_start, now);
+            double frame_delta = elapsed - previous_elapsed;
+            if (frame_delta < 0.0)
+            {
+                frame_delta = 0.0;
+            }
+            previous_elapsed = elapsed;
+
+            int move_finished = 0;
 
             pthread_mutex_lock(&g_stage_mutex);
+            move_finished = update_player_motion(&player, frame_delta);
             if (!player.has_backpack &&
-                player.x == stage.goal_x && player.y == stage.goal_y)
+                is_tile_center_inside_player(&player, stage.goal_x, stage.goal_y))
             {
                 player.has_backpack = 1;
                 stage.map[stage.goal_y][stage.goal_x] = ' ';
             }
             render(&stage, &player, elapsed, s, total_stages);
             pthread_mutex_unlock(&g_stage_mutex);
+
+            if (move_finished)
+            {
+                int held = current_direction_key();
+                if (held != -1)
+                {
+                    pthread_mutex_lock(&g_stage_mutex);
+                    move_player(&player, (char)held, &stage, elapsed);
+                    pthread_mutex_unlock(&g_stage_mutex);
+                }
+            }
 
             pthread_mutex_lock(&g_stage_mutex);
 
@@ -145,8 +169,7 @@ int main(void)
             {
                 Item *it = &stage.items[i];
                 if (it->active &&
-                    it->x == player.x &&
-                    it->y == player.y)
+                    is_tile_center_inside_player(&player, it->x, it->y))
                 {
                     it->active = 0;        // 아이템 비활성화 (맵에서 사라짐)
                     player.shield_count++; // 보호막 1개 획득
@@ -161,7 +184,24 @@ int main(void)
             move_projectiles(&stage);
             pthread_mutex_unlock(&g_stage_mutex);
 
-            usleep(10000);
+            struct timespec frame_end_ts;
+            clock_gettime(CLOCK_MONOTONIC, &frame_end_ts);
+            double frame_time = (frame_end_ts.tv_sec - frame_start_ts.tv_sec) +
+                                (frame_end_ts.tv_nsec - frame_start_ts.tv_nsec) / 1e9;
+            const double target_frame = 1.0 / 60.0;
+            if (frame_time < target_frame)
+            {
+                double sleep_sec = target_frame - frame_time;
+                if (sleep_sec > 0.0)
+                {
+                    struct timespec sleep_ts;
+                    sleep_ts.tv_sec = (time_t)sleep_sec;
+                    sleep_ts.tv_nsec = (long)((sleep_sec - sleep_ts.tv_sec) * 1e9);
+                    if (sleep_ts.tv_nsec < 0)
+                        sleep_ts.tv_nsec = 0;
+                    nanosleep(&sleep_ts, NULL);
+                }
+            }
         }
 
         stop_obstacle_thread();
