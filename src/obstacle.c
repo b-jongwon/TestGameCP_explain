@@ -33,7 +33,6 @@ void set_obstacle_player_ref(const Player *p)
     g_player_ref = p;
 }
 
-static void sync_obstacle_tile_position(Obstacle *o);
 static int try_move_obstacle(Obstacle *o, Stage *stage, int delta_world_x, int delta_world_y);
 
 // ----------------------------------------------------------
@@ -48,20 +47,13 @@ static void update_spinner(Obstacle *o, Stage *stage)
     double current_angle = o->angle_index * speed;
 
     // 2. 새로운 위치 계산 (중심점 + 반지름 * 삼각비)
-    int nx = o->center_x + (int)round(o->radius * cos(current_angle));
-    int ny = o->center_y + (int)round(o->radius * sin(current_angle));
+    int nx_world = o->center_world_x + (int)round(o->orbit_radius_world * cos(current_angle));
+    int ny_world = o->center_world_y + (int)round(o->orbit_radius_world * sin(current_angle));
 
-    // 3. 맵 경계 체크 (혹시 모를 에러 방지)
-    if (nx > 0 && nx < MAX_X && ny > 0 && ny < MAX_Y)
+    if (!is_world_position_blocked(stage, nx_world, ny_world, NULL))
     {
-        // 벽이 아닐 때만 이동 (스피너는 벽을 뚫을지 말지 선택 가능, 여기선 안 뚫음)
-        if (stage->map[ny][nx] != '#')
-        {
-            o->x = nx;
-            o->y = ny;
-            o->world_x = nx * SUBPIXELS_PER_TILE;
-            o->world_y = ny * SUBPIXELS_PER_TILE;
-        }
+        o->world_x = nx_world;
+        o->world_y = ny_world;
     }
 
     // 4. 다음 프레임을 위해 인덱스 증가
@@ -77,12 +69,12 @@ static void update_professor(Obstacle *o, Stage *stage, double delta_time)
         return; // 플레이어 정보 없으면 아무것도 안 함
 
     // 1. 플레이어와의 거리 계산 (맨해튼 거리)
-    int dx = g_player_ref->x - o->x;
-    int dy = g_player_ref->y - o->y;
-    int dist = abs(dx) + abs(dy);
+    int dx_world = g_player_ref->world_x - o->world_x;
+    int dy_world = g_player_ref->world_y - o->world_y;
+    double dist_tiles = (fabs((double)dx_world) + fabs((double)dy_world)) /
+                        (double)SUBPIXELS_PER_TILE;
 
-    // 2. 시야 체크 및 상태 변경
-    if (dist <= o->sight_range)
+    if (dist_tiles <= o->sight_range)
     {
         o->alert = 1; // 발견!
     }
@@ -370,14 +362,6 @@ void stop_obstacle_thread(void)
     // 현재 스테이지 참조 제거
     g_stage = NULL;
 }
-static void sync_obstacle_tile_position(Obstacle *o)
-{
-    if (!o)
-        return;
-    o->x = o->world_x / SUBPIXELS_PER_TILE;
-    o->y = o->world_y / SUBPIXELS_PER_TILE;
-}
-
 static int try_move_obstacle(Obstacle *o, Stage *stage, int delta_world_x, int delta_world_y)
 {
     if (!o || !stage)
@@ -392,6 +376,5 @@ static int try_move_obstacle(Obstacle *o, Stage *stage, int delta_world_x, int d
 
     o->world_x = new_world_x;
     o->world_y = new_world_y;
-    sync_obstacle_tile_position(o);
     return 1;
 }

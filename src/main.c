@@ -175,14 +175,18 @@ int main(void)
             for (int i = 0; i < stage.num_items; i++)
             {
                 Item *it = &stage.items[i];
-                if (it->active &&
-                    is_tile_center_inside_player(&player, it->x, it->y))
+                if (it->active)
                 {
-                    it->active = 0;        // 아이템 비활성화 (맵에서 사라짐)
-                    player.shield_count++; // 보호막 1개 획득
-                    printf("Shield acquired! (x%d)\n", player.shield_count);
+                    int item_tile_x = it->world_x / SUBPIXELS_PER_TILE;
+                    int item_tile_y = it->world_y / SUBPIXELS_PER_TILE;
+                    if (is_tile_center_inside_player(&player, item_tile_x, item_tile_y))
+                    {
+                        it->active = 0;        // 아이템 비활성화 (맵에서 사라짐)
+                        player.shield_count++; // 보호막 1개 획득
+                        printf("Shield acquired! (x%d)\n", player.shield_count);
 
-                    play_sfx_nonblocking(item_sound_path); // 아이템 획득 사운드 재생 (Non-blocking)
+                        play_sfx_nonblocking(item_sound_path); // 아이템 획득 사운드 재생 (Non-blocking)
+                    }
                 }
             }
             pthread_mutex_unlock(&g_stage_mutex);

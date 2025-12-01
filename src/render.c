@@ -388,7 +388,9 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         if (it->active)
         {
             int offset_y = compute_vertical_bounce_offset(elapsed_time);
-            draw_texture_with_pixel_offset(g_tex_item_shield, it->x, it->y, 0, offset_y);
+            int tile_x = it->world_x / SUBPIXELS_PER_TILE;
+            int tile_y = it->world_y / SUBPIXELS_PER_TILE;
+            draw_texture_with_pixel_offset(g_tex_item_shield, tile_x, tile_y, 0, offset_y);
         }
     } // 아이템 렌더링
 
@@ -397,7 +399,9 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         const Projectile *p = &stage->projectiles[i];
         if (p->active)
         {
-            draw_texture(g_tex_projectile, p->x, p->y);
+            double projectile_world_x = (double)p->world_x / SUBPIXELS_PER_TILE;
+            double projectile_world_y = (double)p->world_y / SUBPIXELS_PER_TILE;
+            draw_texture_at_world(g_tex_projectile, projectile_world_x, projectile_world_y);
         }
     } // 투사체 렌더링
 

@@ -169,8 +169,6 @@ int load_stage(Stage *stage, int stage_id)
                 {
                     Obstacle *o = &stage->obstacles[stage->num_obstacles++];
 
-                    o->x = x;
-                    o->y = y;
                     o->world_x = x * SUBPIXELS_PER_TILE;
                     o->world_y = y * SUBPIXELS_PER_TILE;
                     o->target_world_x = o->world_x;
@@ -193,14 +191,15 @@ int load_stage(Stage *stage, int stage_id)
                     else if (c == 'R')
                     {
                         o->kind = OBSTACLE_KIND_SPINNER;
-                        o->center_x = x; // 현재 위치를 회전 중심점으로 잡음
-                        o->center_y = y;
-                        o->radius = 4;      // 반지름 4칸 (기본값 설정)
+                        o->center_world_x = x * SUBPIXELS_PER_TILE;
+                        o->center_world_y = y * SUBPIXELS_PER_TILE;
+                        o->orbit_radius_world = 4 * SUBPIXELS_PER_TILE;
                         o->angle_index = 0; // 0도부터 시작
 
-                        // 스피너는 시작 위치가 중심점이므로,
-                        // 실제 렌더링될 위치(x,y)는 반지름만큼 떨어진 곳으로 바로 이동시켜두면 좋습니다.
-                        o->x = x + 4; // radius 만큼 옆으로 이동한 상태로 시작
+                        o->world_x = o->center_world_x + o->orbit_radius_world;
+                        o->world_y = o->center_world_y;
+                        o->target_world_x = o->world_x;
+                        o->target_world_y = o->world_y;
                     }
 
                     else
@@ -217,8 +216,8 @@ int load_stage(Stage *stage, int stage_id)
                 if (stage->num_items < MAX_ITEMS)
                 {
                     Item *it = &stage->items[stage->num_items++];
-                    it->x = x;
-                    it->y = y;
+                    it->world_x = x * SUBPIXELS_PER_TILE;
+                    it->world_y = y * SUBPIXELS_PER_TILE;
                     it->type = ITEM_TYPE_SHIELD;
                     it->active = 1;
                 }

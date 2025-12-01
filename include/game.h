@@ -39,16 +39,16 @@ typedef enum {
 
 // 맵에 놓이는 아이템 하나
 typedef struct {
-    int x, y;       // 맵 상의 위치
-    ItemType type;  // 아이템 종류
-    int active;     // 1: 아직 남아 있음, 0: 먹혔거나 제거됨
+    int world_x, world_y; // SUBPIXELS_PER_TILE 기준 좌표
+    ItemType type;        // 아이템 종류
+    int active;           // 1: 아직 남아 있음, 0: 먹혔거나 제거됨
 } Item;
 
 // 플레이어가 발사하는 투사체
 typedef struct {
-    int x, y;   // 현재 위치
-    int dx, dy; // 이동 방향 (예: (1,0), (-1,0), (0,1), (0,-1))
-    int active; // 1: 살아 있는 투사체, 0: 소멸
+    int world_x, world_y; // 현재 위치 (서브픽셀)
+    int dir_x, dir_y;     // 이동 방향 단위 벡터 (-1,0,1)
+    int active;           // 1: 살아 있는 투사체, 0: 소멸
 } Projectile;
 
 // 플레이어가 바라보는 방향
@@ -62,9 +62,8 @@ typedef enum {
 
 // Player 구조체
 // - 플레이어 캐릭터의 상태를 표현.
-// - 위치(x, y)와 생존 여부 외에도 가방 보유 여부와 애니메이션 정보를 들고 있음.
+// - 서브픽셀(world_x/world_y) 위치, 생존 여부, 가방 보유 여부와 애니메이션 정보를 들고 있음.
 typedef struct {
-    int x, y;          // 플레이어의 현재 위치 (맵 좌표)
     int world_x, world_y; // SUBPIXELS_PER_TILE 기준 세분화 좌표
     int target_world_x, target_world_y;
     double move_speed;   // 초당 이동하는 서브픽셀 수
@@ -92,14 +91,12 @@ typedef enum {
 
 // Obstacle 구조체
 // - 움직이는 장애물 하나를 표현.
-// - x, y: 현재 위치
 // - dir: 이동 방향 (수평/수직에 따라 의미가 달라짐)
 // - type: 장애물의 이동 타입 (0 = 가로로 이동, 1 = 세로로 이동)
 // - kind: 이 장애물이 어떤 "역할"인지 (일반 / 회전 / 교수님)
 // - hp: 투사체에 맞으면 줄어드는 체력 (0 이하이면 비활성화)
 // - active: 0이면 죽은 장애물(렌더/충돌에서 무시)
 typedef struct {
-    int x, y;      // 장애물 현재 위치 (맵 좌표)
     int dir;       // 이동 방향. +1이면 오른쪽/아래, -1이면 왼쪽/위 방향으로 이동하도록 사용.
     int type;      // 장애물 타입. 0 = horizontal(수평 이동), 1 = vertical(수직 이동)
 
@@ -113,9 +110,9 @@ typedef struct {
     double move_accumulator;       // 남은 이동량(서브픽셀)
     int moving;                    // 이동 중 여부
 
-    // 회전형(spinner) 장애물용 필드
-    int center_x, center_y;  // 회전 중심 좌표
-    int radius;              // 중심으로부터의 거리
+    // 회전형(spinner) 장애물용 필드 (서브픽셀 좌표)
+    int center_world_x, center_world_y;  // 회전 중심 좌표
+    int orbit_radius_world;              // 중심으로부터의 거리(서브픽셀)
     int angle_step;          // 각도 변화 단위(몇 틱마다 한 칸 회전)
     int angle_index;         // 현재 각도 인덱스(0,1,2,3 같은 식으로 사용 예정)
 

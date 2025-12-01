@@ -13,7 +13,7 @@
 
 // 플레이어를 특정 스테이지의 시작 위치로 초기화하는 함수.
 // - 인자 p: 초기화할 Player 구조체 포인터.
-// - 인자 stage: 현재 플레이할 Stage. stage->start_x, start_y를 참고하여 p->x, p->y를 설정.
+// - 인자 stage: 현재 플레이할 Stage. stage->start_x, start_y를 참고하여 p->world_x/world_y를 설정.
 // - 또한 p->alive = 1로 설정하여 플레이어를 "살아있는 상태"로 만듦.
 void init_player(Player *p, const Stage *stage);
 
