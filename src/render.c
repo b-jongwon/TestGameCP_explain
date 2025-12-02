@@ -9,6 +9,7 @@
 #include <SDL2/SDL_image.h>
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 #include "../include/game.h"
 #include "../include/render.h"
@@ -71,6 +72,109 @@ static SDL_Texture *g_tex_exit = NULL;
 static SDL_Texture *g_player_textures[PLAYER_VARIANT_COUNT][PLAYER_FACING_COUNT][PLAYER_FRAME_COUNT] = {{{NULL}}};
 static int g_window_w = 0;
 static int g_window_h = 0;
+
+static int is_tile_blocking_vision(const Stage *stage, int x, int y)
+{
+    if (!stage)
+        return 1;
+
+    int width = (stage->width > 0) ? stage->width : MAX_X;
+    int height = (stage->height > 0) ? stage->height : MAX_Y;
+    if (x < 0 || y < 0 || x >= width || y >= height)
+        return 1;
+
+    char cell = stage->map[y][x];
+    return (cell == '#' || cell == '@');
+}
+
+static int has_line_of_sight(const Stage *stage, int start_x, int start_y, int target_x, int target_y)
+{
+    if (!stage)
+        return 0;
+
+    int width = (stage->width > 0) ? stage->width : MAX_X;
+    int height = (stage->height > 0) ? stage->height : MAX_Y;
+    if (target_x < 0 || target_y < 0 || target_x >= width || target_y >= height)
+        return 0;
+
+    int x0 = start_x;
+    int y0 = start_y;
+    int x1 = target_x;
+    int y1 = target_y;
+    int dx = abs(x1 - x0);
+    int sx = (x0 < x1) ? 1 : -1;
+    int dy = -abs(y1 - y0);
+    int sy = (y0 < y1) ? 1 : -1;
+    int err = dx + dy;
+
+    while (1)
+    {
+        if (!(x0 == start_x && y0 == start_y) && (x0 != x1 || y0 != y1))
+        {
+            if (is_tile_blocking_vision(stage, x0, y0))
+            {
+                return 0;
+            }
+        }
+
+        if (x0 == x1 && y0 == y1)
+        {
+            break;
+        }
+
+        int e2 = 2 * err;
+        if (e2 >= dy)
+        {
+            err += dy;
+            x0 += sx;
+        }
+        if (e2 <= dx)
+        {
+            err += dx;
+            y0 += sy;
+        }
+    }
+
+    return 1;
+}
+
+static void compute_visibility(const Stage *stage, const Player *player, unsigned char visibility[MAX_Y][MAX_X])
+{
+    int width = (stage && stage->width > 0) ? stage->width : MAX_X;
+    int height = (stage && stage->height > 0) ? stage->height : MAX_Y;
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            visibility[y][x] = 0;
+        }
+    }
+
+    if (!stage || !player)
+    {
+        return;
+    }
+
+    int start_x = player->world_x / SUBPIXELS_PER_TILE;
+    int start_y = player->world_y / SUBPIXELS_PER_TILE;
+    if (start_x < 0)
+        start_x = 0;
+    if (start_y < 0)
+        start_y = 0;
+    if (start_x >= width)
+        start_x = width - 1;
+    if (start_y >= height)
+        start_y = height - 1;
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            visibility[y][x] = has_line_of_sight(stage, start_x, start_y, x, y);
+        }
+    }
+}
 
 static SDL_Texture *load_texture(const char *path)
 {
@@ -328,12 +432,17 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
 
     ensure_window_matches_stage(stage);
 
+    int stage_width = (stage->width > 0) ? stage->width : MAX_X;
+    int stage_height = (stage->height > 0) ? stage->height : MAX_Y;
+    unsigned char visibility[MAX_Y][MAX_X];
+    compute_visibility(stage, player, visibility);
+
     SDL_SetRenderDrawColor(g_renderer, 15, 15, 15, 255);
     SDL_RenderClear(g_renderer);
 
-    for (int y = 0; y < stage->height; y++)
+    for (int y = 0; y < stage_height; y++)
     {
-        for (int x = 0; x < stage->width; x++)
+        for (int x = 0; x < stage_width; x++)
         {
             char cell = stage->map[y][x];
             SDL_Texture *base = texture_for_cell(cell);
@@ -378,6 +487,12 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         {
             double obstacle_world_x = (double)o->world_x / SUBPIXELS_PER_TILE;
             double obstacle_world_y = (double)o->world_y / SUBPIXELS_PER_TILE;
+            int tile_x = (int)floor(obstacle_world_x);
+            int tile_y = (int)floor(obstacle_world_y);
+            if (tile_x < 0 || tile_y < 0 || tile_x >= stage_width || tile_y >= stage_height)
+                continue;
+            if (!visibility[tile_y][tile_x])
+                continue;
             draw_texture_at_world(tex_to_draw, obstacle_world_x, obstacle_world_y);
         }
     }
@@ -390,6 +505,10 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             int offset_y = compute_vertical_bounce_offset(elapsed_time);
             int tile_x = it->world_x / SUBPIXELS_PER_TILE;
             int tile_y = it->world_y / SUBPIXELS_PER_TILE;
+            if (tile_x < 0 || tile_y < 0 || tile_x >= stage_width || tile_y >= stage_height)
+                continue;
+            if (!visibility[tile_y][tile_x])
+                continue;
             draw_texture_with_pixel_offset(g_tex_item_shield, tile_x, tile_y, 0, offset_y);
         }
     } // 아이템 렌더링
@@ -401,6 +520,12 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         {
             double projectile_world_x = (double)p->world_x / SUBPIXELS_PER_TILE;
             double projectile_world_y = (double)p->world_y / SUBPIXELS_PER_TILE;
+            int tile_x = (int)floor(projectile_world_x);
+            int tile_y = (int)floor(projectile_world_y);
+            if (tile_x < 0 || tile_y < 0 || tile_x >= stage_width || tile_y >= stage_height)
+                continue;
+            if (!visibility[tile_y][tile_x])
+                continue;
             draw_texture_at_world(g_tex_projectile, projectile_world_x, projectile_world_y);
         }
     } // 투사체 렌더링
@@ -443,6 +568,21 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     {
         draw_texture_scaled(g_tex_shield_on, player_world_x, player_world_y, 1.2);
     }
+
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_renderer, 40, 40, 40, 200);
+    for (int y = 0; y < stage_height; ++y)
+    {
+        for (int x = 0; x < stage_width; ++x)
+        {
+            if (!visibility[y][x])
+            {
+                SDL_Rect fog = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+                SDL_RenderFillRect(g_renderer, &fog);
+            }
+        }
+    }
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_NONE);
 
     SDL_RenderPresent(g_renderer);
 
