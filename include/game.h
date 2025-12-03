@@ -34,7 +34,7 @@
 // 아이템 종류
 typedef enum {
     ITEM_TYPE_SHIELD = 0,   // 한 번 죽을 상황을 무효화해주는 보호막 아이템
-    // 나중에 ITEM_TYPE_SPEED, ITEM_TYPE_POWER 등 추가 가능
+    ITEM_TYPE_SCOOTER       // 이동 속도를 높여주는 E-scooter
 } ItemType;
 
 // 맵에 놓이는 아이템 하나
@@ -75,11 +75,15 @@ typedef enum {
 typedef struct {
     int world_x, world_y; // SUBPIXELS_PER_TILE 기준 세분화 좌표
     int target_world_x, target_world_y;
-    double move_speed;   // 초당 이동하는 서브픽셀 수
+    double move_speed;   // 초당 이동하는 서브픽셀 수 (현재 배율 적용치)
+    double base_move_speed; // 스테이지 난이도 기반 기본 속도
+    double speed_multiplier; // 이동 속도 배율 (스쿠터 등 아이템 효과)
     double move_accumulator; // 프레임 간 남은 이동량(서브픽셀)
     int moving;          // 이동 중 여부
     int alive;         // 플레이어 생존 여부.
     int has_backpack;  // 가방(G)을 획득했는지 여부
+    int has_scooter;   // E-scooter 획득 여부
+    double scooter_expire_time; // 스쿠터 효과 종료 시각 (스테이지 경과 시간 기준)
     PlayerFacing facing; // 현재 바라보는 방향
     PlayerAnimPhase anim_phase; // 현재 애니메이션 단계 (idle/step)
     int anim_pixel_progress;    // 다음 프레임 전환까지 누적된 이동 픽셀 수

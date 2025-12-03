@@ -249,7 +249,7 @@ int load_stage(Stage *stage, int stage_id)
                 }
                 stage->map[y][x] = ' ';
             }
-            else if (c == 'I')
+            else if (c == 'I' || c == 'E')
             {
                 // 아이템 생성
                 if (stage->num_items < MAX_ITEMS)
@@ -257,7 +257,7 @@ int load_stage(Stage *stage, int stage_id)
                     Item *it = &stage->items[stage->num_items++];
                     it->world_x = x * SUBPIXELS_PER_TILE;
                     it->world_y = y * SUBPIXELS_PER_TILE;
-                    it->type = ITEM_TYPE_SHIELD;
+                    it->type = (c == 'I') ? ITEM_TYPE_SHIELD : ITEM_TYPE_SCOOTER;
                     it->active = 1;
                 }
                 // 맵에는 아이템 표시 대신 공간

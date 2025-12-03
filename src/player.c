@@ -39,12 +39,16 @@ void init_player(Player *p, const Stage *stage) {
     // [수정] 하드코딩 값을 제거하고 스테이지 설정값을 사용
     // 만약 설정값이 0.0이면 안전장치로 0.18 사용
     double speed_setting = (stage->difficulty_player_speed > 0.0) ? stage->difficulty_player_speed : 0.18;
-    p->move_speed = SUBPIXELS_PER_TILE / speed_setting; 
+    p->base_move_speed = SUBPIXELS_PER_TILE / speed_setting;
+    p->speed_multiplier = 1.0;
+    p->move_speed = p->base_move_speed * p->speed_multiplier;
     
     p->move_accumulator = 0.0;
     p->moving = 0;
     p->alive = 1;
     p->has_backpack = 0;
+    p->has_scooter = 0;
+    p->scooter_expire_time = 0.0;
     p->facing = PLAYER_FACING_DOWN;
     p->anim_phase = PLAYER_ANIM_PHASE_IDLE_A;
     p->anim_pixel_progress = 0;

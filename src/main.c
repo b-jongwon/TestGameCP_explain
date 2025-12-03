@@ -19,6 +19,8 @@
 extern int is_goal_reached(const Stage *stage, const Player *player);
 extern int check_collision(Stage *stage, Player *player);
 
+static const double kScooterDurationSec = 20.0;
+
 int main(void)
 {
     setup_signal_handlers();
@@ -175,20 +177,51 @@ int main(void)
             for (int i = 0; i < stage.num_items; i++)
             {
                 Item *it = &stage.items[i];
-                if (it->active)
+                if (!it->active)
                 {
-                    int item_tile_x = it->world_x / SUBPIXELS_PER_TILE;
-                    int item_tile_y = it->world_y / SUBPIXELS_PER_TILE;
-                    if (is_tile_center_inside_player(&player, item_tile_x, item_tile_y))
-                    {
-                        it->active = 0;        // 아이템 비활성화 (맵에서 사라짐)
-                        player.shield_count++; // 보호막 1개 획득
-                        printf("Shield acquired! (x%d)\n", player.shield_count);
-
-                        play_sfx_nonblocking(item_sound_path); // 아이템 획득 사운드 재생 (Non-blocking)
-                    }
+                    continue;
                 }
+
+                int item_tile_x = it->world_x / SUBPIXELS_PER_TILE;
+                int item_tile_y = it->world_y / SUBPIXELS_PER_TILE;
+                if (!is_tile_center_inside_player(&player, item_tile_x, item_tile_y))
+                {
+                    continue;
+                }
+
+                it->active = 0; // 아이템 비활성화 (맵에서 사라짐)
+
+                switch (it->type)
+                {
+                case ITEM_TYPE_SHIELD:
+                    player.shield_count++; // 보호막 1개 획득
+                    printf("Shield acquired! (x%d)\n", player.shield_count);
+                    break;
+                case ITEM_TYPE_SCOOTER:
+                {
+                    const double scooter_multiplier = 2.0;
+                    player.has_scooter = 1;
+                    player.speed_multiplier = scooter_multiplier;
+                    player.move_speed = player.base_move_speed * player.speed_multiplier;
+                    player.scooter_expire_time = elapsed + kScooterDurationSec;
+                    printf("Scooter equipped! Speed multiplier: %.1fx\n", player.speed_multiplier);
+                    break;
+                }
+                default:
+                    break;
+                }
+
+                play_sfx_nonblocking(item_sound_path); // 아이템 획득 사운드 재생 (Non-blocking)
             }
+            if (player.has_scooter && player.scooter_expire_time > 0.0 && elapsed >= player.scooter_expire_time)
+            {
+                player.has_scooter = 0;
+                player.speed_multiplier = 1.0;
+                player.move_speed = player.base_move_speed * player.speed_multiplier;
+                player.scooter_expire_time = 0.0;
+                printf("Scooter effect expired.\n");
+            }
+
             pthread_mutex_unlock(&g_stage_mutex);
 
             pthread_mutex_lock(&g_stage_mutex);

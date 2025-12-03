@@ -20,6 +20,8 @@ typedef enum
 {
     PLAYER_VARIANT_NORMAL = 0,
     PLAYER_VARIANT_BACKPACK,
+    PLAYER_VARIANT_SCOOTER,
+    PLAYER_VARIANT_SCOOTER_BACKPACK,
     PLAYER_VARIANT_COUNT
 } PlayerVariant;
 
@@ -50,7 +52,21 @@ static const PlayerTextureSet PLAYER_TEXTURE_PATHS[PLAYER_VARIANT_COUNT][PLAYER_
         [PLAYER_FACING_UP] = {"assets/image/player/back_stand_1.PNG", "assets/image/player/back_stand_2.png", "assets/image/player/back_left.PNG", "assets/image/player/back_right.PNG"},
         [PLAYER_FACING_LEFT] = {"assets/image/player/left_stand.PNG", "assets/image/player/left_stand.PNG", "assets/image/player/left_left.png", "assets/image/player/left_right.png"},
         [PLAYER_FACING_RIGHT] = {"assets/image/player/right_stand.png", "assets/image/player/right_stand.png", "assets/image/player/right_left.PNG", "assets/image/player/right_right.PNG"}},
-    [PLAYER_VARIANT_BACKPACK] = {[PLAYER_FACING_DOWN] = {"assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_left.png", "assets/image/player_backpack/foward_right.png"}, [PLAYER_FACING_UP] = {"assets/image/player_backpack/back_stand_1.png", "assets/image/player_backpack/back_stand_2.png", "assets/image/player_backpack/back_left.png", "assets/image/player_backpack/back_right.png"}, [PLAYER_FACING_LEFT] = {"assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_left.png", "assets/image/player_backpack/left_right.png"}, [PLAYER_FACING_RIGHT] = {"assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_left.png", "assets/image/player_backpack/right_right.png"}}};
+    [PLAYER_VARIANT_BACKPACK] = {
+        [PLAYER_FACING_DOWN] = {"assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_left.png", "assets/image/player_backpack/foward_right.png"},
+        [PLAYER_FACING_UP] = {"assets/image/player_backpack/back_stand_1.png", "assets/image/player_backpack/back_stand_2.png", "assets/image/player_backpack/back_left.png", "assets/image/player_backpack/back_right.png"},
+        [PLAYER_FACING_LEFT] = {"assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_left.png", "assets/image/player_backpack/left_right.png"},
+        [PLAYER_FACING_RIGHT] = {"assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_left.png", "assets/image/player_backpack/right_right.png"}},
+    [PLAYER_VARIANT_SCOOTER] = {
+        [PLAYER_FACING_DOWN] = {"assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG"},
+        [PLAYER_FACING_UP] = {"assets/image/player_scooter/back_stand_1.PNG", "assets/image/player_scooter/back_stand_2.png", "assets/image/player_scooter/back_stand_1.PNG", "assets/image/player_scooter/back_stand_2.png"},
+        [PLAYER_FACING_LEFT] = {"assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG"},
+        [PLAYER_FACING_RIGHT] = {"assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png"}},
+    [PLAYER_VARIANT_SCOOTER_BACKPACK] = {
+        [PLAYER_FACING_DOWN] = {"assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG"},
+        [PLAYER_FACING_UP] = {"assets/image/player_scooter_backpack/back_stand_1.png", "assets/image/player_scooter_backpack/back_stand_2.PNG", "assets/image/player_scooter_backpack/back_stand_1.png", "assets/image/player_scooter_backpack/back_stand_2.PNG"},
+        [PLAYER_FACING_LEFT] = {"assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG"},
+        [PLAYER_FACING_RIGHT] = {"assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png"}}};
 
 static SDL_Window *g_window = NULL;
 static SDL_Renderer *g_renderer = NULL;
@@ -64,6 +80,7 @@ static SDL_Texture *g_tex_obstacle = NULL;    // X (일반 장애물)
 
 
 static SDL_Texture *g_tex_item_shield = NULL; // 필드에 놓인 쉴드 아이템(I)
+static SDL_Texture *g_tex_item_scooter = NULL; // E-scooter 아이템(E)
 static SDL_Texture *g_tex_projectile = NULL;  // 투사체
 static SDL_Texture *g_tex_shield_on = NULL;   // 플레이어 보호막 활성화
 
@@ -311,10 +328,11 @@ int init_renderer(void)
 
 
     g_tex_item_shield = load_texture("assets/image/shield64.png");   // I 아이템 전용 텍스처
+    g_tex_item_scooter = load_texture("assets/image/scooter64.png"); // E 아이템 전용 텍스처
     g_tex_projectile = load_texture("assets/image/professor64.png");  // 투사체 임시 렌더링
     g_tex_shield_on = load_texture("assets/image/shieldon64.png");    // 보호막 활성화 표현
 
-    if (!g_tex_projectile || !g_tex_item_shield || !g_tex_shield_on)
+    if (!g_tex_projectile || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
         return -1;
 
     if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor || !g_tex_exit)
@@ -357,6 +375,7 @@ void shutdown_renderer(void)
     destroy_texture(&g_tex_obstacle);    // 일반 장애물
     destroy_texture(&g_tex_spinner);     // 도는 장애물
     destroy_texture(&g_tex_item_shield); // 아이템 렌더링 셧다운
+    destroy_texture(&g_tex_item_scooter);
     destroy_texture(&g_tex_projectile);  // 투사체 셧다운
     destroy_texture(&g_tex_shield_on);   // 플레이어 보호막 텍스처
     
@@ -500,17 +519,37 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     for (int i = 0; i < stage->num_items; i++)
     {
         const Item *it = &stage->items[i];
-        if (it->active)
+        if (!it->active)
         {
-            int offset_y = compute_vertical_bounce_offset(elapsed_time);
-            int tile_x = it->world_x / SUBPIXELS_PER_TILE;
-            int tile_y = it->world_y / SUBPIXELS_PER_TILE;
-            if (tile_x < 0 || tile_y < 0 || tile_x >= stage_width || tile_y >= stage_height)
-                continue;
-            if (!visibility[tile_y][tile_x])
-                continue;
-            draw_texture_with_pixel_offset(g_tex_item_shield, tile_x, tile_y, 0, offset_y);
+            continue;
         }
+
+        SDL_Texture *item_tex = NULL;
+        switch (it->type)
+        {
+        case ITEM_TYPE_SHIELD:
+            item_tex = g_tex_item_shield;
+            break;
+        case ITEM_TYPE_SCOOTER:
+            item_tex = g_tex_item_scooter;
+            break;
+        default:
+            break;
+        }
+
+        if (!item_tex)
+        {
+            continue;
+        }
+
+        int offset_y = compute_vertical_bounce_offset(elapsed_time);
+        int tile_x = it->world_x / SUBPIXELS_PER_TILE;
+        int tile_y = it->world_y / SUBPIXELS_PER_TILE;
+        if (tile_x < 0 || tile_y < 0 || tile_x >= stage_width || tile_y >= stage_height)
+            continue;
+        if (!visibility[tile_y][tile_x])
+            continue;
+        draw_texture_with_pixel_offset(item_tex, tile_x, tile_y, 0, offset_y);
     } // 아이템 렌더링
 
     for (int i = 0; i < stage->num_projectiles; i++)
@@ -536,7 +575,15 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         facing = PLAYER_FACING_DOWN;
     }
 
-    int variant = player->has_backpack ? PLAYER_VARIANT_BACKPACK : PLAYER_VARIANT_NORMAL;
+    int variant = PLAYER_VARIANT_NORMAL;
+    if (player->has_scooter)
+    {
+        variant = player->has_backpack ? PLAYER_VARIANT_SCOOTER_BACKPACK : PLAYER_VARIANT_SCOOTER;
+    }
+    else if (player->has_backpack)
+    {
+        variant = PLAYER_VARIANT_BACKPACK;
+    }
     int frame = PLAYER_FRAME_STAND_A;
     switch (player->anim_phase)
     {
