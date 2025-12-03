@@ -329,7 +329,7 @@ int init_renderer(void)
 
     g_tex_item_shield = load_texture("assets/image/shield64.png");   // I 아이템 전용 텍스처
     g_tex_item_scooter = load_texture("assets/image/scooter64.png"); // E 아이템 전용 텍스처
-    g_tex_projectile = load_texture("assets/image/professor64.png");  // 투사체 임시 렌더링
+    g_tex_projectile = load_texture("assets/image/ball.png");  // 투사체 임시 렌더링
     g_tex_shield_on = load_texture("assets/image/shieldon64.png");    // 보호막 활성화 표현
 
     if (!g_tex_projectile || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
