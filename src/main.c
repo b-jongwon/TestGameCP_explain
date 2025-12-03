@@ -149,7 +149,7 @@ int main(void)
                     break;
                 }
                 // --- 🔥 투사체 발사 ---
-                if (key == 'k' || key == 'K')
+                if (key == 'k' || key == 'K' || key == ' ')
                 {
                     pthread_mutex_lock(&g_stage_mutex);
                     fire_projectile(&stage, &player);
@@ -205,6 +205,13 @@ int main(void)
                     player.move_speed = player.base_move_speed * player.speed_multiplier;
                     player.scooter_expire_time = elapsed + kScooterDurationSec;
                     printf("Scooter equipped! Speed multiplier: %.1fx\n", player.speed_multiplier);
+                    break;
+                }
+                case ITEM_TYPE_SUPPLY:
+                {
+                    // 상수에 정의된 값(5)만큼 증가
+                    stage.remaining_ammo += AMMO_REFILL_AMOUNT;
+                    printf("Ammo +%d! (Total: %d)\n", AMMO_REFILL_AMOUNT, stage.remaining_ammo);
                     break;
                 }
                 default:

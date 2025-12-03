@@ -20,6 +20,9 @@
 #define SUBPIXELS_PER_TILE 10
 #define PLAYER_MOVE_STEP_SUBPIXELS 2
 
+#define CONSTANT_PROJECTILE_RANGE 7 // 투사체 사거리
+#define AMMO_REFILL_AMOUNT 5 //추가 되는 탄약 수
+
 // 한 스테이지에서 허용하는 최대 장애물 개수.
 // - Stage.obstacles 배열의 크기.
 // - 스테이지 설계 시 장애물 개수를 이 값 이하로 제한해야 함.
@@ -34,7 +37,8 @@
 // 아이템 종류
 typedef enum {
     ITEM_TYPE_SHIELD = 0,   // 한 번 죽을 상황을 무효화해주는 보호막 아이템
-    ITEM_TYPE_SCOOTER       // 이동 속도를 높여주는 E-scooter
+    ITEM_TYPE_SCOOTER,       // 이동 속도를 높여주는 E-scooter
+    ITEM_TYPE_SUPPLY
 } ItemType;
 
 // 맵에 놓이는 아이템 하나

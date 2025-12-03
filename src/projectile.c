@@ -2,7 +2,7 @@
 #include "../include/game.h"
 #include <stdio.h>
 
-#define CONSTANT_PROJECTILE_RANGE 7 // 투사체 사거리
+
 
 void fire_projectile(Stage *stage, const Player *player)
 {

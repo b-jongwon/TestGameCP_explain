@@ -52,21 +52,9 @@ static const PlayerTextureSet PLAYER_TEXTURE_PATHS[PLAYER_VARIANT_COUNT][PLAYER_
         [PLAYER_FACING_UP] = {"assets/image/player/back_stand_1.PNG", "assets/image/player/back_stand_2.png", "assets/image/player/back_left.PNG", "assets/image/player/back_right.PNG"},
         [PLAYER_FACING_LEFT] = {"assets/image/player/left_stand.PNG", "assets/image/player/left_stand.PNG", "assets/image/player/left_left.png", "assets/image/player/left_right.png"},
         [PLAYER_FACING_RIGHT] = {"assets/image/player/right_stand.png", "assets/image/player/right_stand.png", "assets/image/player/right_left.PNG", "assets/image/player/right_right.PNG"}},
-    [PLAYER_VARIANT_BACKPACK] = {
-        [PLAYER_FACING_DOWN] = {"assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_left.png", "assets/image/player_backpack/foward_right.png"},
-        [PLAYER_FACING_UP] = {"assets/image/player_backpack/back_stand_1.png", "assets/image/player_backpack/back_stand_2.png", "assets/image/player_backpack/back_left.png", "assets/image/player_backpack/back_right.png"},
-        [PLAYER_FACING_LEFT] = {"assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_left.png", "assets/image/player_backpack/left_right.png"},
-        [PLAYER_FACING_RIGHT] = {"assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_left.png", "assets/image/player_backpack/right_right.png"}},
-    [PLAYER_VARIANT_SCOOTER] = {
-        [PLAYER_FACING_DOWN] = {"assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG"},
-        [PLAYER_FACING_UP] = {"assets/image/player_scooter/back_stand_1.PNG", "assets/image/player_scooter/back_stand_2.png", "assets/image/player_scooter/back_stand_1.PNG", "assets/image/player_scooter/back_stand_2.png"},
-        [PLAYER_FACING_LEFT] = {"assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG"},
-        [PLAYER_FACING_RIGHT] = {"assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png"}},
-    [PLAYER_VARIANT_SCOOTER_BACKPACK] = {
-        [PLAYER_FACING_DOWN] = {"assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG"},
-        [PLAYER_FACING_UP] = {"assets/image/player_scooter_backpack/back_stand_1.png", "assets/image/player_scooter_backpack/back_stand_2.PNG", "assets/image/player_scooter_backpack/back_stand_1.png", "assets/image/player_scooter_backpack/back_stand_2.PNG"},
-        [PLAYER_FACING_LEFT] = {"assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG"},
-        [PLAYER_FACING_RIGHT] = {"assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png"}}};
+    [PLAYER_VARIANT_BACKPACK] = {[PLAYER_FACING_DOWN] = {"assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_stand.png", "assets/image/player_backpack/foward_left.png", "assets/image/player_backpack/foward_right.png"}, [PLAYER_FACING_UP] = {"assets/image/player_backpack/back_stand_1.png", "assets/image/player_backpack/back_stand_2.png", "assets/image/player_backpack/back_left.png", "assets/image/player_backpack/back_right.png"}, [PLAYER_FACING_LEFT] = {"assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_stand.PNG", "assets/image/player_backpack/left_left.png", "assets/image/player_backpack/left_right.png"}, [PLAYER_FACING_RIGHT] = {"assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_stand.png", "assets/image/player_backpack/right_left.png", "assets/image/player_backpack/right_right.png"}},
+    [PLAYER_VARIANT_SCOOTER] = {[PLAYER_FACING_DOWN] = {"assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG", "assets/image/player_scooter/forward_stand.PNG"}, [PLAYER_FACING_UP] = {"assets/image/player_scooter/back_stand_1.PNG", "assets/image/player_scooter/back_stand_2.png", "assets/image/player_scooter/back_stand_1.PNG", "assets/image/player_scooter/back_stand_2.png"}, [PLAYER_FACING_LEFT] = {"assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG", "assets/image/player_scooter/left_stand.PNG"}, [PLAYER_FACING_RIGHT] = {"assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png", "assets/image/player_scooter/right_stand.png"}},
+    [PLAYER_VARIANT_SCOOTER_BACKPACK] = {[PLAYER_FACING_DOWN] = {"assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG", "assets/image/player_scooter_backpack/front_stand.PNG"}, [PLAYER_FACING_UP] = {"assets/image/player_scooter_backpack/back_stand_1.png", "assets/image/player_scooter_backpack/back_stand_2.PNG", "assets/image/player_scooter_backpack/back_stand_1.png", "assets/image/player_scooter_backpack/back_stand_2.PNG"}, [PLAYER_FACING_LEFT] = {"assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG", "assets/image/player_scooter_backpack/left_stand.PNG"}, [PLAYER_FACING_RIGHT] = {"assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png", "assets/image/player_scooter_backpack/right_stand.png"}}};
 
 static SDL_Window *g_window = NULL;
 static SDL_Renderer *g_renderer = NULL;
@@ -74,15 +62,16 @@ static SDL_Texture *g_tex_floor = NULL;
 static SDL_Texture *g_tex_wall = NULL;
 static SDL_Texture *g_tex_goal = NULL;
 
-static SDL_Texture *g_tex_professor = NULL;   // P 교수님
-static SDL_Texture *g_tex_spinner = NULL;     // R (스피너)
-static SDL_Texture *g_tex_obstacle = NULL;    // X (일반 장애물)
+static SDL_Texture *g_tex_professor = NULL; // P 교수님
+static SDL_Texture *g_tex_spinner = NULL;   // R (스피너)
+static SDL_Texture *g_tex_obstacle = NULL;  // X (일반 장애물)
 
-
-static SDL_Texture *g_tex_item_shield = NULL; // 필드에 놓인 쉴드 아이템(I)
+static SDL_Texture *g_tex_item_shield = NULL;  // 필드에 놓인 쉴드 아이템(I)
 static SDL_Texture *g_tex_item_scooter = NULL; // E-scooter 아이템(E)
-static SDL_Texture *g_tex_projectile = NULL;  // 투사체
-static SDL_Texture *g_tex_shield_on = NULL;   // 플레이어 보호막 활성화
+static SDL_Texture *g_tex_item_supply = NULL;  // 투사체 보충 아이템
+
+static SDL_Texture *g_tex_projectile = NULL; // 투사체
+static SDL_Texture *g_tex_shield_on = NULL;  // 플레이어 보호막 활성화
 
 static SDL_Texture *g_tex_exit = NULL;
 
@@ -323,14 +312,15 @@ int init_renderer(void)
     g_tex_exit = load_texture("assets/image/exit.PNG");
 
     g_tex_professor = load_texture("assets/image/한명균교수님.png");
-    g_tex_obstacle = load_texture("assets/image/professor64.png");    // X (일반)
-    g_tex_spinner = load_texture("assets/image/professor64.png");     // R (스피너)
-
+    g_tex_obstacle = load_texture("assets/image/professor64.png"); // X (일반)
+    g_tex_spinner = load_texture("assets/image/professor64.png");  // R (스피너)
 
     g_tex_item_shield = load_texture("assets/image/shield64.png");   // I 아이템 전용 텍스처
     g_tex_item_scooter = load_texture("assets/image/scooter64.png"); // E 아이템 전용 텍스처
-    g_tex_projectile = load_texture("assets/image/ball.png");  // 투사체 임시 렌더링
-    g_tex_shield_on = load_texture("assets/image/shieldon64.png");    // 보호막 활성화 표현
+    g_tex_item_supply = load_texture("assets/image/supply.png");     // A 아이템 투사체 보급
+
+    g_tex_projectile = load_texture("assets/image/ball.png");      // 투사체 임시 렌더링
+    g_tex_shield_on = load_texture("assets/image/shieldon64.png"); // 보호막 활성화 표현
 
     if (!g_tex_projectile || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
         return -1;
@@ -376,9 +366,10 @@ void shutdown_renderer(void)
     destroy_texture(&g_tex_spinner);     // 도는 장애물
     destroy_texture(&g_tex_item_shield); // 아이템 렌더링 셧다운
     destroy_texture(&g_tex_item_scooter);
-    destroy_texture(&g_tex_projectile);  // 투사체 셧다운
-    destroy_texture(&g_tex_shield_on);   // 플레이어 보호막 텍스처
-    
+    destroy_texture(&g_tex_item_supply);
+
+    destroy_texture(&g_tex_projectile); // 투사체 셧다운
+    destroy_texture(&g_tex_shield_on);  // 플레이어 보호막 텍스처
 
     for (int variant = 0; variant < PLAYER_VARIANT_COUNT; variant++)
     {
@@ -495,7 +486,7 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         case OBSTACLE_KIND_SPINNER:
             tex_to_draw = g_tex_spinner;
             break;
-        
+
         case OBSTACLE_KIND_LINEAR:
         default:
             tex_to_draw = g_tex_obstacle;
@@ -532,6 +523,9 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             break;
         case ITEM_TYPE_SCOOTER:
             item_tex = g_tex_item_scooter;
+            break;
+        case ITEM_TYPE_SUPPLY:
+            item_tex = g_tex_item_supply;
             break;
         default:
             break;

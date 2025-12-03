@@ -50,20 +50,20 @@ typedef struct
 
 static const StageDifficulty kDifficultySettings[] = {
     {0.0, 0.0, 0.0, 0, 0, 0}, // 0번 인덱스 (사용 안 함)
-                                  // ★속도 관련 숫자는 작으면 빠름.
+                              // ★속도 관련 숫자는 작으면 빠름.
     // Stage 1:                   // {플레이어 속도,일반 장애물 속도, 교수님 속도, 장애물 체력, 교수님 시야범위, 게임당 투사체 수)
     {0.11, 0.20, 0.35, 2, 5, 10}, // 구조체 순서대로 설정하면 됩니다.
-                                    // 발사체 사거리는 projectile.c 에서  CONSTANT_PROJECTILE_RANGE 수정.
-    // Stage 2: 
+                                  // 발사체 사거리는 game.h 에서  CONSTANT_PROJECTILE_RANGE 수정. , 투사체 증가 갯수는 game.h 에서 AMMO_REFILL_AMOUNT 수정 
+    // Stage 2:
     {0.18, 0.25, 0.30, 3, 8, 3},
 
-    // Stage 3: 
+    // Stage 3:
     {0.16, 0.20, 0.22, 4, 12, 3},
 
-    // Stage 4: 
+    // Stage 4:
     {0.14, 0.15, 0.18, 5, 15, 3},
 
-    // Stage 5: 
+    // Stage 5:
     {0.12, 0.12, 0.12, 5, 20, 3},
 
     // Stage 6
@@ -249,7 +249,7 @@ int load_stage(Stage *stage, int stage_id)
                 }
                 stage->map[y][x] = ' ';
             }
-            else if (c == 'I' || c == 'E')
+            else if (c == 'I' || c == 'E' || c == 'A')
             {
                 // 아이템 생성
                 if (stage->num_items < MAX_ITEMS)
@@ -257,10 +257,24 @@ int load_stage(Stage *stage, int stage_id)
                     Item *it = &stage->items[stage->num_items++];
                     it->world_x = x * SUBPIXELS_PER_TILE;
                     it->world_y = y * SUBPIXELS_PER_TILE;
-                    it->type = (c == 'I') ? ITEM_TYPE_SHIELD : ITEM_TYPE_SCOOTER;
+
+                    //
+                    if (c == 'I')
+                    {
+                        it->type = ITEM_TYPE_SHIELD;
+                    }
+                    else if (c == 'E')
+                    {
+                        it->type = ITEM_TYPE_SCOOTER;
+                    }
+                    else
+                    {
+                        it->type = ITEM_TYPE_SUPPLY;
+                    }
+
                     it->active = 1;
                 }
-                // 맵에는 아이템 표시 대신 공간
+                // 맵에는 공백 처리
                 stage->map[y][x] = ' ';
             }
             else
