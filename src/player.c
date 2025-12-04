@@ -57,9 +57,7 @@ void init_player(Player *p, const Stage *stage) {
     p->shield_count = 0; 
 }
 
-static int is_wall(char cell) {
-    return (cell == '#' || cell == '@');
-}
+
 
 void update_player_idle(Player *p, double current_time) {
     if (!p) return;

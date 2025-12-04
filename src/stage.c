@@ -41,7 +41,7 @@ static const StageFileInfo kStageFiles[] = {
 typedef struct
 {
     double player_sec_per_tile; // 플레이어가 한 타일 가는 데 걸리는 시간 (작을수록 빠름)
-    double obs_sec_per_tile;    // 일반 장애물(X, R) 이동 속도
+    double obs_sec_per_tile;    // 일반 장애물(V,H, R) 이동 속도
     double prof_sec_per_tile;   // 교수님(P) 이동 속도
     int obs_hp;                 // 장애물 체력
     int prof_sight;             // 교수님 시야 범위 (타일 수)
@@ -207,7 +207,7 @@ int load_stage(Stage *stage, int stage_id)
                 // 맵에는 실제로 'G' 표시 남겨 사용
                 stage->map[y][x] = 'G';
             }
-            else if (c == 'X' || c == 'P' || c == 'R')
+            else if (c == 'V' || c == 'H' || c == 'P' || c == 'R')
             {
                 if (stage->num_obstacles < MAX_OBSTACLES)
                 {
@@ -245,9 +245,18 @@ int load_stage(Stage *stage, int stage_id)
                         o->world_x = o->center_world_x + o->orbit_radius_world;
                         o->world_y = o->center_world_y;
                     }
-                    else
-                    { // 일반 장애물 (X)
+                    else if (c == 'V') 
+                    {
                         o->kind = OBSTACLE_KIND_LINEAR;
+                        o->type = 1; // 1 = 세로 이동 고정
+                        o->move_speed = SUBPIXELS_PER_TILE / diff.obs_sec_per_tile;
+                        o->hp = diff.obs_hp;
+                    }
+                   
+                    else if (c == 'H') 
+                    {
+                        o->kind = OBSTACLE_KIND_LINEAR;
+                        o->type = 0; // 0 = 가로 이동 고정
                         o->move_speed = SUBPIXELS_PER_TILE / diff.obs_sec_per_tile;
                         o->hp = diff.obs_hp;
                     }
