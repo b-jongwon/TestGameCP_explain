@@ -39,6 +39,7 @@ int main(void)
     const char *next_level_sound_path = "bgm/Next_Level.wav"; // 스테이지 클리어, 다음 레벨 전환 사운드 파일 경로 설정
     const char *bag_acquire_sound_path = "bgm/Get_Bag.wav";   // 가방 획득 사운드 파일 경로 설정
     const char *walking_sound_path = "bgm/Walking.wav";       // 걷기 사운드 파일 경로 설정
+    const char *no_item_sound_path = "bgm/No_Item.wav";       // 아이템 없을 때 사운드 파일 경로 설정
 
     struct timeval global_start, global_end;
     gettimeofday(&global_start, NULL);
@@ -119,10 +120,26 @@ int main(void)
                     pthread_mutex_unlock(&g_stage_mutex);
                 }
             }
-           // 충돌 그룹 처리 lock 구간------------------ 
+            // 충돌 그룹 처리 lock 구간------------------
             pthread_mutex_lock(&g_stage_mutex);
 
-            if (check_trap_collision(&stage, &player))  /// 트랩 충돌 검사
+            if (player.shield_count > 0)
+            {
+                // 트랩, 일반 충돌 감지 여부를 확인 (쉴드 사용 조건)
+                if (check_trap_collision(&stage, &player) || check_collision(&stage, &player))
+                {
+                    player.shield_count--; // 쉴드 1개 소모
+                    printf("Shield blocked collision! Remaining: (x%d)\n", player.shield_count);
+
+                    // 쉴드 사용 피드백 사운드 재생 (논블로킹)
+                    play_sfx_nonblocking(item_use_sound_path);
+
+                    pthread_mutex_unlock(&g_stage_mutex);
+                    continue; // 👈 쉴드를 소모하고 Game Over 로직을 건너뛰고 루프를 재시작
+                }
+            }
+
+            if (check_trap_collision(&stage, &player)) /// 트랩 충돌 검사
             {
                 printf("You stepped on a TRAP!\n");
 
@@ -130,9 +147,9 @@ int main(void)
                 play_obstacle_caught_sound(gameover_bgm_path);
 
                 stage_failed = 1;
-                
-                pthread_mutex_unlock(&g_stage_mutex); 
-                break; 
+
+                pthread_mutex_unlock(&g_stage_mutex);
+                break;
             }
 
             if (check_collision(&stage, &player)) // 충돌 체크
@@ -164,9 +181,30 @@ int main(void)
                 // --- 🔥 투사체 발사 ---
                 if (key == 'k' || key == 'K' || key == ' ')
                 {
+                    /*
                     pthread_mutex_lock(&g_stage_mutex);
                     fire_projectile(&stage, &player);
                     play_sfx_nonblocking(item_use_sound_path); // 투사체 발사 사운드 재생 (논블로킹)
+                    pthread_mutex_unlock(&g_stage_mutex);
+                    continue; // 이동 처리와 겹치지 않게 skip
+                    */
+
+                    pthread_mutex_lock(&g_stage_mutex);
+
+                    // 1. ✅ 투사체 잔여 개수 확인
+                    if (stage.remaining_ammo > 0)
+                    {
+                        fire_projectile(&stage, &player);
+                        // fire_projectile 내부에서 stage.remaining_ammo가 감소한다고 가정합니다.
+                        play_sfx_nonblocking(item_use_sound_path); // 발사 성공 사운드
+                    }
+                    // 2. 🙅 [추가] 투사체가 없을 때
+                    else
+                    {
+                        // No_Item 사운드 재생 (논블로킹)
+                        play_sfx_nonblocking(no_item_sound_path);
+                    }
+
                     pthread_mutex_unlock(&g_stage_mutex);
                     continue; // 이동 처리와 겹치지 않게 skip
                 }
