@@ -20,11 +20,7 @@ void stop_bgm();
 // 실패 사운드 함수 (Blocking)
 // ===============================================
 
-// 1. 일반 장애물 발각 시 소리 재생 (WAV 파일 사용)
+// 1. WAV 파일 경로를 받아 장애물에 걸렸을 때 소리를 재생하는 함수 (Blocking)
 void play_obstacle_caught_sound(const char *filePath);
-
-// 2. 교수님 발각 시 음성 재생 (TTS 로직 구현 완료)
-// TTS 메시지 텍스트 파일 경로를 인자로 받습니다.
-void play_professor_caught_sound(const char *textFilePath);
 
 #endif // SOUND_H

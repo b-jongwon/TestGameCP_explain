@@ -26,7 +26,7 @@ static const double kWalkSfxIntervalScooterSec = 0.25; // 스쿠터 사용 시 �
 static double g_last_walk_sfx_time = 0.0;              // 마지막 걷기 사운드 재생 시간
 
 int main(void)
-{   
+{
     signal(SIGCHLD, SIG_IGN);
     setup_signal_handlers();
 
@@ -45,6 +45,7 @@ int main(void)
     const char *bag_acquire_sound_path = "bgm/Get_Bag.wav";   // 가방 획득 사운드 파일 경로 설정
     const char *walking_sound_path = "bgm/Walking.wav";       // 걷기 사운드 파일 경로 설정
     const char *no_item_sound_path = "bgm/No_Item.wav";       // 아이템 없을 때 사운드 파일 경로 설정
+    // const char *wall_break_sound_path = "bgm/Break_wall.wav"; // 벽 부수기 사운드 파일 경로 설정
 
     struct timeval global_start, global_end;
     gettimeofday(&global_start, NULL);

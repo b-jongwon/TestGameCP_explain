@@ -9,7 +9,7 @@
 #ifndef PROJECTILE_H
 #define PROJECTILE_H
 
-#include "game.h"   // Stage, Player, Projectile 구조체 필요
+#include "game.h" // Stage, Player, Projectile 구조체 필요
 
 // 플레이어가 바라보는 방향으로 투사체 하나 발사
 void fire_projectile(Stage *stage, const Player *player);
