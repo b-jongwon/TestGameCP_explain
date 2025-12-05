@@ -684,7 +684,8 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         }
     }
     SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_NONE);
-*/
+*/  
+// 패턴 확인용 주석처리
     SDL_RenderPresent(g_renderer);
 
     char title[128];

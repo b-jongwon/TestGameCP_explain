@@ -70,7 +70,7 @@ int pattern_stage_5(Stage *stage, Obstacle *prof, Player *player, double delta_t
     const double HIT_DURATION = 0.2;   // 0.2초 동안 최저 속도 유지
     const double MIN_FACTOR   = 0.25;  // 최저 속도: 원래의 25%
 
-    // p_timer를 0~CYCLE 범위로 감아줌
+   
     double t = fmod(prof->p_timer, CYCLE);
 
     // 스쿠터/난이도 포함 “기본 러닝 속도”
@@ -94,7 +94,7 @@ int pattern_stage_5(Stage *stage, Obstacle *prof, Player *player, double delta_t
         factor = MIN_FACTOR + (1.0 - MIN_FACTOR) * u;
     }
 
-    // 최종 적용 속도: (난이도/스쿠터 등 기본 속도) * (교수 디버프 계수)
+    // 최종 적용 속도: (난이도/스쿠터 등 기본 속도) * (교수 디버프 계수) 
     player->move_speed = base_speed * factor;
 
     return 1; // 이동은 그대로 진행
