@@ -491,64 +491,33 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         }
     }
 
-    int professor_alive = 0;
-for (int i = 0; i < stage->num_obstacles; i++)
-{
-    const Obstacle *o = &stage->obstacles[i];
-    if (o->active && o->kind == OBSTACLE_KIND_PROFESSOR)
-    {
-        professor_alive = 1;
-        break;
-    }
-}
+    
 
-// -------------------------
-// Stage 6 전용 로직
-// -------------------------
-if (stage->id == 6)
-{
     if (!player->has_backpack)
     {
-        // 가방 없으면 Goal만 표시
-        int offset_y = compute_vertical_bounce_offset(elapsed_time);
-        draw_texture_with_pixel_offset(
-            g_tex_goal,
-            stage->goal_x, stage->goal_y,
-            0, offset_y
-        );
+        int gx = stage->goal_x;
+        int gy = stage->goal_y;
+
+        if (gx >= 0 && gy >= 0)
+        {
+            int offset = (int)round(sin(elapsed_time*6.0) * 2);
+            SDL_Rect dst = {gx*TILE_SIZE, gy*TILE_SIZE + offset, TILE_SIZE, TILE_SIZE};
+            SDL_RenderCopy(g_renderer, g_tex_goal, NULL, &dst);
+        }
     }
-    else if (!professor_alive)
-    {
-        // 가방 있음 + 교수 전부 사망 → Exit 표시
-        draw_texture(
-            g_tex_exit,
-            stage->start_x, stage->start_y
-        );
-    }
-    else
-    {
-        // 가방 있음 + 교수 살아 있음 → 아무 것도 안 보임
-    }
-}
-// -------------------------
-// Stage 1~5 기존 로직
-// -------------------------
-else
-{
+
     if (player->has_backpack)
     {
-        draw_texture(g_tex_exit, stage->start_x, stage->start_y);
+        int fx = stage->exit_x;
+        int fy = stage->exit_y;
+
+        if (fx >= 0 && fy >= 0)
+        {
+            SDL_Rect dst = {fx*TILE_SIZE, fy*TILE_SIZE, TILE_SIZE, TILE_SIZE};
+            SDL_RenderCopy(g_renderer, g_tex_exit, NULL, &dst);
+        }
     }
-    else
-    {
-        int offset_y = compute_vertical_bounce_offset(elapsed_time);
-        draw_texture_with_pixel_offset(
-            g_tex_goal,
-            stage->goal_x, stage->goal_y,
-            0, offset_y
-        );
-    }
-}
+
     SDL_Texture *current_prof_tex = g_tex_professor_1; // 기본값
 
     switch (current_stage)

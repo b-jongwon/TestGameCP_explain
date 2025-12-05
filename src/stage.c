@@ -88,7 +88,7 @@ static const StageDifficulty kDifficultySettings[] = {
     {0.12, 0.12, 0.3, 5, 8, 7, 0.15, 3},
 
     // Stage 6
-    {0.12, 0.12, 0.3, 6, 8, 30, 0.15, 3}};
+    {0.12, 0.12, 0.3, 6, 20, 30, 0.1, 3}};
 
 int get_stage_count(void)
 {
@@ -219,13 +219,20 @@ int load_stage(Stage *stage, int stage_id)
             }
             else if (c == 'G')
             {
-                // 골 위치
+                // 가방 위치
                 stage->goal_x = x;
                 stage->goal_y = y;
 
                 // 맵에는 실제로 'G' 표시 남겨 사용
-                stage->map[y][x] = 'G';
+                stage->map[y][x] = ' ';
             }
+            else if (c == 'F')
+            {
+                stage->exit_x = x;
+                stage->exit_y = y;
+                stage->map[y][x] = ' ';
+            }
+
             else if (c == 'V' || c == 'H' || c == 'P' || c == 'R' || c == 'B')
             {
                 if (stage->num_obstacles < MAX_OBSTACLES)

@@ -1,11 +1,10 @@
 #include <stdio.h>
 #include "../include/game.h"
-#include "../include/player.h"   
+#include "../include/player.h"
 // game.h에는 Stage, Player 구조체 정의가 들어있다.
-// 이 파일은 Stage와 Player의 좌표를 비교하는 기능만 필요하므로 
+// 이 파일은 Stage와 Player의 좌표를 비교하는 기능만 필요하므로
 // game.h만 include하면 충분하다.
 // (불필요한 의존성 최소화: 좋은 설계)
-
 
 /* --------------------------------------------------------------
  * is_goal_reached()
@@ -21,14 +20,17 @@
  *   - 1: 목표 도달 (스테이지 클리어)
  *   - 0: 아직 도달하지 못함
  */
-int is_goal_reached(const Stage *stage, const Player *player) {
+int is_goal_reached(const Stage *stage, const Player *player)
+{
     if (!stage || !player) return 0;
-    if (!player->has_backpack) return 0;
 
-    return is_tile_center_inside_player(player, stage->start_x, stage->start_y);
+   
+    if (!player->has_backpack)
+        return 0;
+
+   
+    return is_tile_center_inside_player(player, stage->exit_x, stage->exit_y);
 }
-
-
 
 /* --------------------------------------------------------------
  * check_collision()
@@ -48,31 +50,58 @@ int is_goal_reached(const Stage *stage, const Player *player) {
  *   - 멀티스레드 환경에서 stage->obstacles 접근 시 mutex가 있어야 한다.
  *     (실제 메인에서 mutex lock 후 호출함)
  */
-int check_collision(Stage *stage, Player *player) {
-
-     for (int i = 0; i < stage->num_obstacles; i++)
+int check_collision(Stage *stage, Player *player)
+{
+    for (int i = 0; i < stage->num_obstacles; i++)
     {
         Obstacle *o = &stage->obstacles[i];
-        if (!o->active) continue;
+        if (!o->active)
+            continue;
 
-        if (o->kind == OBSTACLE_KIND_BREAKABLE_WALL) continue; // 깨지는 벽.
+        if (o->kind == OBSTACLE_KIND_BREAKABLE_WALL)
+            continue;
 
-        int center_x = o->world_x + SUBPIXELS_PER_TILE / 2;
-        int center_y = o->world_y + SUBPIXELS_PER_TILE / 2;
-        if (is_world_point_inside_player(player, center_x, center_y))
+        int cx = o->world_x + SUBPIXELS_PER_TILE / 2;
+        int cy = o->world_y + SUBPIXELS_PER_TILE / 2;
+
+        if (!is_world_point_inside_player(player, cx, cy))
+            continue;
+
+        // 교수 충돌 (Stage 6 보스전 포함)
+
+        if (o->kind == OBSTACLE_KIND_PROFESSOR)
         {
-            // 보호막이 있으면 충돌 무효화
+
+            // Stage 6 : 쉴드 있어도 무조건 즉사 (보스전)
+            if (stage->id == 6)
+            {
+                return 1; // 무조건 사망
+            }
+
+            // Stage 1~5 : 원래 로직 유지
+
             if (player->shield_count > 0)
             {
                 player->shield_count--;
-                o->active = 0;   // 장애물 제거
-                printf("Shield used! Remaining: %d\n", player->shield_count);
-                return 0;        // 죽지 않음
+                o->active = 0; // 교수 제거
+                return 0;      // 플레이어 생존
             }
 
-            // 보호막 없으면 진짜 충돌 → 죽음
+            // 쉴드 없으면 죽음
             return 1;
         }
+
+        //   일반 장애물 충돌
+
+        if (player->shield_count > 0)
+        {
+            player->shield_count--;
+            o->active = 0; // 일반 장애물 제거
+            return 0;
+        }
+
+        return 1; // 쉴드 없으면 사망
     }
+
     return 0;
 }

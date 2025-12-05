@@ -164,8 +164,9 @@ typedef struct
     char map[MAX_Y][MAX_X + 1]; // 실제 맵 데이터 (최대 크기)
 
     int start_x, start_y; // 시작 위치
-    int goal_x, goal_y;   // 목표 위치
-
+    int goal_x, goal_y;   // 가방 위치
+    int exit_x,exit_y; // 목적지 위치
+    
     int num_obstacles;                 // 장애물 개수
     Obstacle obstacles[MAX_OBSTACLES]; // 장애물 배열
 
