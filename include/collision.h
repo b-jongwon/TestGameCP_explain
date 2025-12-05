@@ -11,6 +11,9 @@ typedef struct
     int overlap_right;
 } CollisionInfo;
 
+
 int is_world_position_blocked(const Stage *stage, int world_x, int world_y, CollisionInfo *info);
+
+int is_active_breakable_wall_at(const Stage *stage, int tx, int ty);
 
 #endif // COLLISION_H

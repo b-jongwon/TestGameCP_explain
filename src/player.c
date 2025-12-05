@@ -4,6 +4,7 @@
 #include "../include/player.h"
 #include "../include/collision.h"
 
+
 int g_player_anim_stride_pixels = 4;
 
 static PlayerAnimPhase advance_anim_phase(PlayerAnimPhase phase)
@@ -36,8 +37,7 @@ void init_player(Player *p, const Stage *stage) {
     p->target_world_x = p->world_x;
     p->target_world_y = p->world_y;
 
-    // [수정] 하드코딩 값을 제거하고 스테이지 설정값을 사용
-    // 만약 설정값이 0.0이면 안전장치로 0.18 사용
+    
     double speed_setting = (stage->difficulty_player_speed > 0.0) ? stage->difficulty_player_speed : 0.18;
     p->base_move_speed = SUBPIXELS_PER_TILE / speed_setting;
     p->speed_multiplier = 1.0;
@@ -83,7 +83,18 @@ static int tile_is_passable(const Stage *stage, int tile_x, int tile_y)
         return 0;
 
     char cell = stage->map[tile_y][tile_x];
-    return (cell != '#' && cell != '@');
+
+    
+    if (cell == '#' || cell == '@')
+        return 0;
+
+   
+    if (is_active_breakable_wall_at(stage, tile_x, tile_y))
+    {
+        return 0; 
+    }
+
+    return 1;
 }
 
 static int count_front_free_pixels(const Player *p, const Stage *stage, int dir_x, int dir_y)

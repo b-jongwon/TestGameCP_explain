@@ -207,7 +207,7 @@ int load_stage(Stage *stage, int stage_id)
                 // 맵에는 실제로 'G' 표시 남겨 사용
                 stage->map[y][x] = 'G';
             }
-            else if (c == 'V' || c == 'H' || c == 'P' || c == 'R')
+            else if (c == 'V' || c == 'H' || c == 'P' || c == 'R' || c == 'B')
             {
                 if (stage->num_obstacles < MAX_OBSTACLES)
                 {
@@ -259,7 +259,15 @@ int load_stage(Stage *stage, int stage_id)
                         o->type = 0; // 0 = 가로 이동 고정
                         o->move_speed = SUBPIXELS_PER_TILE / diff.obs_sec_per_tile;
                         o->hp = diff.obs_hp;
+                    }else if (c == 'B') 
+                    
+                    {
+                        o->kind = OBSTACLE_KIND_BREAKABLE_WALL;
+                        o->move_speed = 0.0; // 움직임 없음
+                        o->hp = 3;           
+                        o->dir = 0;
                     }
+                    
                 }
                 stage->map[y][x] = ' ';
             }

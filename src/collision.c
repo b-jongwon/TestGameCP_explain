@@ -1,5 +1,35 @@
 #include "../include/collision.h"
 
+
+int is_active_breakable_wall_at(const Stage *stage, int tx, int ty)
+{
+    if (!stage)
+        return 0;
+
+
+    const int tile_size = SUBPIXELS_PER_TILE;
+
+    for (int i = 0; i < stage->num_obstacles; ++i)
+    {
+        const Obstacle *o = &stage->obstacles[i];
+
+        
+        if (o->active && o->kind == OBSTACLE_KIND_BREAKABLE_WALL)
+        {
+           
+            int wall_tx = o->world_x / tile_size;
+            int wall_ty = o->world_y / tile_size;
+
+          
+            if (wall_tx == tx && wall_ty == ty)
+            {
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
+
 int is_world_position_blocked(const Stage *stage, int world_x, int world_y, CollisionInfo *info)
 {
     if (!stage)
@@ -65,7 +95,8 @@ int is_world_position_blocked(const Stage *stage, int world_x, int world_y, Coll
                 return 1;
             }
 
-            if (stage->map[ty][tx] == '#' || stage->map[ty][tx] == '@')
+            if (stage->map[ty][tx] == '#' || stage->map[ty][tx] == '@' ||
+                is_active_breakable_wall_at(stage, tx, ty))
             {
                 if (!info)
                 {

@@ -55,6 +55,8 @@ int check_collision(Stage *stage, Player *player) {
         Obstacle *o = &stage->obstacles[i];
         if (!o->active) continue;
 
+        if (o->kind == OBSTACLE_KIND_BREAKABLE_WALL) continue; // 깨지는 벽.
+
         int center_x = o->world_x + SUBPIXELS_PER_TILE / 2;
         int center_y = o->world_y + SUBPIXELS_PER_TILE / 2;
         if (is_world_point_inside_player(player, center_x, center_y))

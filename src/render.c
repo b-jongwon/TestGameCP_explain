@@ -79,7 +79,8 @@ static SDL_Texture *g_tex_item_supply = NULL;  // 투사체 보충 아이템
 static SDL_Texture *g_tex_projectile = NULL; // 투사체
 static SDL_Texture *g_tex_shield_on = NULL;  // 플레이어 보호막 활성화
 
-static SDL_Texture *g_tex_trap = NULL; // 트랩
+static SDL_Texture *g_tex_trap = NULL;       // 트랩
+static SDL_Texture *g_tex_wall_break = NULL; // 깨지는 벽
 
 static SDL_Texture *g_tex_exit = NULL;
 
@@ -333,7 +334,8 @@ int init_renderer(void)
     g_tex_item_scooter = load_texture("assets/image/scooter64.png"); // E 아이템 전용 텍스처
     g_tex_item_supply = load_texture("assets/image/supply.png");     // A 아이템 투사체 보급
 
-    g_tex_trap = load_texture("assets/image/trap.png"); // 트랩 (일반타일로 의문사 또는 실제 보이게 해서 못 지나가도록)
+    g_tex_trap = load_texture("assets/image/trap.png");         // 트랩 (일반타일로 의문사 또는 실제 보이게 해서 못 지나가도록)
+    g_tex_wall_break = load_texture("assets/image/wall64.png"); // 깨지는 벽
 
     g_tex_projectile = load_texture("assets/image/ball.png");      // 투사체 임시 렌더링
     g_tex_shield_on = load_texture("assets/image/shieldon64.png"); // 보호막 활성화 표현
@@ -389,6 +391,8 @@ void shutdown_renderer(void)
     destroy_texture(&g_tex_item_shield); // 아이템 렌더링 셧다운
     destroy_texture(&g_tex_item_scooter);
     destroy_texture(&g_tex_item_supply); // 보급
+
+    destroy_texture(&g_tex_wall_break); // 깨지는 벽
 
     destroy_texture(&g_tex_trap); // 트랩
 
@@ -538,6 +542,9 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             break;
         case OBSTACLE_KIND_SPINNER:
             tex_to_draw = g_tex_spinner;
+            break;
+        case OBSTACLE_KIND_BREAKABLE_WALL:
+            tex_to_draw = g_tex_wall_break;
             break;
 
         case OBSTACLE_KIND_LINEAR:

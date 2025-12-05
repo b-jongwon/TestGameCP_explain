@@ -104,7 +104,7 @@ typedef enum {
     OBSTACLE_KIND_LINEAR = 0,    // 기존: 상하/좌우로 왔다갔다 하는 일반 장애물
     OBSTACLE_KIND_SPINNER,       // 새로 추가할: 중심을 기준으로 빙글빙글 도는 장애물
     OBSTACLE_KIND_PROFESSOR,      // 교수님: 시야/추격 AI를 가질 장애물
-
+    OBSTACLE_KIND_BREAKABLE_WALL, // 부서지는 벽
 } ObstacleKind;
 
 // Obstacle 구조체
