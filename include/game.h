@@ -100,6 +100,8 @@ typedef struct
     int is_moving;              // 1이면 이동 중, 0이면 정지 상태
     double last_move_time;      // 마지막으로 실제 이동한 시각(초)
     int shield_count;           // 한 번 살려주는 보호막 개수 (아이템 먹으면 증가, 충돌 시 소비)
+
+    int is_confused; // 1: 혼란 상태(이동 방향 반대), 0: 정상
 } Player;
 
 // 장애물의 "역할" 종류
@@ -165,8 +167,8 @@ typedef struct
 
     int start_x, start_y; // 시작 위치
     int goal_x, goal_y;   // 가방 위치
-    int exit_x,exit_y; // 목적지 위치
-    
+    int exit_x, exit_y;   // 목적지 위치
+
     int num_obstacles;                 // 장애물 개수
     Obstacle obstacles[MAX_OBSTACLES]; // 장애물 배열
 
@@ -186,7 +188,7 @@ typedef struct
 
     int boss_exists;
     int boss_defeated;
-    
+
 } Stage;
 
 #endif // GAME_H

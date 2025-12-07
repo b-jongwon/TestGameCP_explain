@@ -27,7 +27,8 @@ static double g_last_walk_sfx_time = 0.0;              // 마지막 걷기 사�
 
 int main(int argc, char *argv[])
 {
-    signal(SIGCHLD, SIG_IGN);
+    setup_signal_handlers();
+    // signal(SIGCHLD, SIG_IGN);
     setup_signal_handlers();
 
     if (init_renderer() != 0)

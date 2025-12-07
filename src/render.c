@@ -687,6 +687,23 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         draw_texture_scaled(g_tex_shield_on, player_world_x, player_world_y, 1.2);
     }
 
+    if (player->is_confused)
+    {
+        // 렌더러의 색상을 반투명한 검은색으로 설정 (50% 투명도)
+        SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
+        SDL_SetRenderDrawColor(g_renderer, 20, 20, 20, 200); // R, G, B, Alpha (210은 불투명정도, 해당 수치로 투명도 조절 가능)
+
+        // 화면 전체를 덮는 사각형 정의 (창 크기 사용)
+        SDL_Rect screen_rect = {0, 0, g_window_w, g_window_h};
+
+        // 화면 전체에 반투명한 검은색 사각형을 채웁니다.
+        SDL_RenderFillRect(g_renderer, &screen_rect);
+
+        // 블렌드 모드와 색상을 복구합니다.
+        SDL_SetRenderDrawColor(g_renderer, 15, 15, 15, 255); // 배경색과 동일하게 복구
+        SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_NONE);
+    }
+
     SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_renderer, 40, 40, 40, 200);
     for (int y = 0; y < stage_height; ++y)
