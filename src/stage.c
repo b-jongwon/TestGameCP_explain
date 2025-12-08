@@ -90,6 +90,77 @@ static const StageDifficulty kDifficultySettings[] = {
     // Stage 6
     {0.12, 0.12, 0.3, 6, 7, 30, 0.1, 3}};
 
+static void copy_map_to_render_layer(Stage *stage)
+{
+    if (!stage)
+    {
+        return;
+    }
+
+    for (int y = 0; y < MAX_Y; ++y)
+    {
+        for (int x = 0; x < MAX_X; ++x)
+        {
+            char src = stage->map[y][x];
+            if (is_tile_opaque_char(src) || src == 'T')
+            {
+                stage->render_map[y][x] = src;
+            }
+            else
+            {
+                stage->render_map[y][x] = ' ';
+            }
+        }
+        stage->render_map[y][MAX_X] = '\0';
+    }
+}
+
+static void load_render_overlay(Stage *stage, const char *stage_filename)
+{
+    copy_map_to_render_layer(stage);
+
+    if (!stage || !stage_filename)
+    {
+        return;
+    }
+
+    char render_filename[64];
+    const char *dot = strrchr(stage_filename, '.');
+    if (dot)
+    {
+        snprintf(render_filename, sizeof(render_filename), "assets/%.*s_render.map", (int)(dot - stage_filename), stage_filename);
+    }
+    else
+    {
+        snprintf(render_filename, sizeof(render_filename), "assets/%s_render.map", stage_filename);
+    }
+
+    FILE *render_fp = fopen(render_filename, "r");
+    if (!render_fp)
+    {
+        return;
+    }
+
+    char line[1024];
+    int y = 0;
+    while (y < MAX_Y && fgets(line, sizeof(line), render_fp))
+    {
+        int len = (int)strlen(line);
+        while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
+        {
+            line[--len] = '\0';
+        }
+
+        for (int x = 0; x < len && x < MAX_X; ++x)
+        {
+            stage->render_map[y][x] = line[x];
+        }
+        y++;
+    }
+
+    fclose(render_fp);
+}
+
 int get_stage_count(void)
 {
     return (int)(sizeof(kStageFiles) / sizeof(kStageFiles[0]));
@@ -404,5 +475,7 @@ int load_stage(Stage *stage, int stage_id)
     }
 
     fclose(fp);
+
+    load_render_overlay(stage, info->filename);
     return 0;
 }

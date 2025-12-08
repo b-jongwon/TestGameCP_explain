@@ -109,7 +109,7 @@ static int get_next_step_bfs(Stage *stage, int start_tx, int start_ty, int targe
 
             if (visited[ny][nx])
                 continue;
-            if (stage->map[ny][nx] == '#' || stage->map[ny][nx] == '@')
+            if (is_tile_solid_char(stage->map[ny][nx]))
                 continue;
 
             visited[ny][nx] = 1;

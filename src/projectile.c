@@ -95,7 +95,7 @@ static int is_wall_cell(const Stage *stage, int tile_x, int tile_y)
         return 1;
 
     char cell = stage->map[tile_y][tile_x];
-    return (cell == '#' || cell == '@');
+    return is_tile_solid_char(cell);
 }
 
 void move_projectiles(Stage *stage)

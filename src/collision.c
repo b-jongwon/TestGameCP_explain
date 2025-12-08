@@ -95,7 +95,7 @@ int is_world_position_blocked(const Stage *stage, int world_x, int world_y, Coll
                 return 1;
             }
 
-            if (stage->map[ty][tx] == '#' || stage->map[ty][tx] == '@' ||
+            if (is_tile_solid_char(stage->map[ty][tx]) ||
                 is_active_breakable_wall_at(stage, tx, ty))
             {
                 if (!info)

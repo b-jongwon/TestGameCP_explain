@@ -163,7 +163,8 @@ typedef struct
     int id;        // 스테이지 ID 번호 (1, 2, 3 ... 이런 식으로 구분)
     char name[32]; // 스테이지 이름
 
-    char map[MAX_Y][MAX_X + 1]; // 실제 맵 데이터 (최대 크기)
+    char map[MAX_Y][MAX_X + 1];        // 실제 맵 데이터 (최대 크기)
+    char render_map[MAX_Y][MAX_X + 1]; // 시각적 렌더링에 사용하는 별도 지층 (없으면 map을 복제해 사용)
 
     int start_x, start_y; // 시작 위치
     int goal_x, goal_y;   // 가방 위치
@@ -190,5 +191,34 @@ typedef struct
     int boss_defeated;
 
 } Stage;
+
+static inline int is_static_student_tile(char cell)
+{
+    switch (cell)
+    {
+    case 'm':
+    case 'w':
+    case 'M':
+    case 'W':
+        return 1;
+    case 'l':
+    case 'L':
+    case 'r':
+    case 'R':
+        return 1; // 과거 맵 호환
+    default:
+        return 0;
+    }
+}
+
+static inline int is_tile_solid_char(char cell)
+{
+    return (cell == '#' || cell == '@' || is_static_student_tile(cell));
+}
+
+static inline int is_tile_opaque_char(char cell)
+{
+    return (cell == '#' || cell == '@');
+}
 
 #endif // GAME_H

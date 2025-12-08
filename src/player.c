@@ -85,7 +85,7 @@ static int tile_is_passable(const Stage *stage, int tile_x, int tile_y)
     char cell = stage->map[tile_y][tile_x];
 
     
-    if (cell == '#' || cell == '@')
+    if (is_tile_solid_char(cell))
         return 0;
 
    

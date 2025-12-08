@@ -87,6 +87,11 @@ static SDL_Renderer *g_renderer = NULL;
 static SDL_Texture *g_tex_floor = NULL;
 static SDL_Texture *g_tex_wall = NULL;
 static SDL_Texture *g_tex_goal = NULL;
+static SDL_Texture *g_tex_pulpit = NULL;
+static SDL_Texture *g_tex_wall_left_wood = NULL;
+static SDL_Texture *g_tex_wall_left_metal = NULL;
+static SDL_Texture *g_tex_wall_right_wood = NULL;
+static SDL_Texture *g_tex_wall_right_metal = NULL;
 
 static SDL_Texture *g_tex_professor_1 = NULL; // 스테이지별 교수님
 static SDL_Texture *g_tex_professor_2 = NULL;
@@ -138,7 +143,7 @@ static int is_tile_blocking_vision(const Stage *stage, int x, int y)
         return 1;
 
     char cell = stage->map[y][x];
-    return (cell == '#' || cell == '@');
+    return is_tile_opaque_char(cell);
 }
 
 static int has_line_of_sight(const Stage *stage, int start_x, int start_y, int target_x, int target_y)
@@ -449,6 +454,11 @@ int init_renderer(void)
 
     g_tex_floor = load_texture("assets/image/floor64.png");
     g_tex_wall = load_texture("assets/image/wall64.png");
+    g_tex_pulpit = load_texture("assets/image/pulpit64.png");
+    g_tex_wall_left_wood = load_texture("assets/image/w_left.png");
+    g_tex_wall_left_metal = load_texture("assets/image/m_left.png");
+    g_tex_wall_right_wood = load_texture("assets/image/w_right.PNG");
+    g_tex_wall_right_metal = load_texture("assets/image/m_right.png");
     g_tex_goal = load_texture("assets/image/backpack64.png");
     g_tex_exit = load_texture("assets/image/exit.PNG");
 
@@ -476,7 +486,8 @@ int init_renderer(void)
     if (!g_tex_projectile || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
         return -1;
 
-    if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor_1 || !g_tex_exit)
+    if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor_1 || !g_tex_exit || !g_tex_pulpit ||
+        !g_tex_wall_left_wood || !g_tex_wall_left_metal || !g_tex_wall_right_wood || !g_tex_wall_right_metal)
     {
         return -1;
     }
@@ -509,6 +520,11 @@ void shutdown_renderer(void)
 {
     destroy_texture(&g_tex_floor);
     destroy_texture(&g_tex_wall);
+    destroy_texture(&g_tex_pulpit);
+    destroy_texture(&g_tex_wall_left_wood);
+    destroy_texture(&g_tex_wall_left_metal);
+    destroy_texture(&g_tex_wall_right_wood);
+    destroy_texture(&g_tex_wall_right_metal);
     destroy_texture(&g_tex_goal);
     destroy_texture(&g_tex_exit);
 
@@ -578,14 +594,66 @@ static void ensure_window_matches_stage(const Stage *stage)
     }
 }
 
-static SDL_Texture *texture_for_cell(char cell)
+static SDL_Texture *texture_for_static_obstacle(char cell)
 {
-    if (cell == '#' || cell == '@')
-        return g_tex_wall;
+    switch (cell)
+    {
+    case 'm':
+        return g_tex_wall_left_metal ? g_tex_wall_left_metal : g_tex_wall;
+    case 'w':
+        return g_tex_wall_left_wood ? g_tex_wall_left_wood : g_tex_wall;
+    case 'M':
+        return g_tex_wall_right_metal ? g_tex_wall_right_metal : g_tex_wall;
+    case 'W':
+        return g_tex_wall_right_wood ? g_tex_wall_right_wood : g_tex_wall;
+    case 'l':
+        return g_tex_wall_left_wood ? g_tex_wall_left_wood : g_tex_wall;
+    case 'L':
+        return g_tex_wall_left_metal ? g_tex_wall_left_metal : g_tex_wall;
+    case 'r':
+        return g_tex_wall_right_wood ? g_tex_wall_right_wood : g_tex_wall;
+    case 'R':
+        return g_tex_wall_right_metal ? g_tex_wall_right_metal : g_tex_wall;
+    default:
+        return NULL;
+    }
+}
 
-    if (cell == 'T')
+static SDL_Texture *texture_for_cell(char logic_cell, char render_cell)
+{
+    int force_logic_visual = (logic_cell == 'T') || is_tile_opaque_char(logic_cell);
+    char base_char;
+    if (force_logic_visual)
+    {
+        base_char = logic_cell;
+    }
+    else if (render_cell != '\0')
+    {
+        base_char = render_cell;
+    }
+    else
+    {
+        base_char = ' ';
+    }
+
+    if (base_char == 'T')
+    {
         return g_tex_trap;
-    return g_tex_floor;
+    }
+
+    if (is_tile_opaque_char(base_char))
+    {
+        return g_tex_wall;
+    }
+
+    switch (base_char)
+    {
+    case 'p':
+    case 'P':
+        return g_tex_pulpit ? g_tex_pulpit : g_tex_floor;
+    default:
+        return g_tex_floor;
+    }
 }
 
 static void draw_texture(SDL_Texture *texture, int x, int y, const Camera *camera)
@@ -641,9 +709,19 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     {
         for (int x = draw_start_x; x < draw_end_x; x++)
         {
-            char cell = stage->map[y][x];
-            SDL_Texture *base = texture_for_cell(cell);
+            char logic_cell = stage->map[y][x];
+            char render_cell = stage->render_map[y][x];
+            SDL_Texture *base = texture_for_cell(logic_cell, render_cell);
             draw_texture(base, x, y, &camera);
+
+            if (is_static_student_tile(logic_cell))
+            {
+                SDL_Texture *overlay = texture_for_static_obstacle(logic_cell);
+                if (overlay)
+                {
+                    draw_texture(overlay, x, y, &camera);
+                }
+            }
         }
     }
 
