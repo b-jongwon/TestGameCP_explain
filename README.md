@@ -71,3 +71,7 @@ make
 | 장애물 `X` | 교수님 | `assets/image/professor64.png`
 
 맵 파일을 수정하면 해당 문자의 위치에 자동으로 이미지가 렌더링됩니다.
+
+## TTS bash (TTS 소리 출력, install 필요함)
+sudo apt-get install espeak
+sudo apt install libsdl2-ttf-dev
