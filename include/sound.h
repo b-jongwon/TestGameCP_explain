@@ -13,6 +13,9 @@ void play_bgm(const char *filePath, int loop);
 // 논블로킹 효과음 재생 함수
 void play_sfx_nonblocking(const char *filePath);
 
+// TTS(텍스트 음성 변환) 기능: 주어진 텍스트를 음성으로 출력 (Blocking)
+void speak_tts_blocking(const char *text);
+
 // 백그라운드에서 재생 중인 BGM 프로세스를 종료하는 함수.
 void stop_bgm();
 

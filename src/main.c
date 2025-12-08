@@ -79,6 +79,11 @@ int main(int argc, char *argv[])
         printf("지정된 맵(%s)만 플레이합니다.\n", argv[1]);
     }
 
+    const char *tts_command = "espeak -a 200 -v en-us+m5 -s 160 'Game Start!'"; // -s: 속도, -p: 피치 조절
+
+    fflush(stdout);
+    system(tts_command);
+
     play_bgm(bgm_file_path, 1); // BGM 재생 시작 (Non-blocking)
 
     for (int stage_id = start_stage_id, stage_counter = 0;
@@ -90,7 +95,7 @@ int main(int argc, char *argv[])
         if (load_stage(&stage, stage_id) != 0)
         {
             fprintf(stderr, "Failed to load stage %d\n", stage_id);
-            stop_bgm(); // 오류 발생시 bgm 중지
+            stop_bgm(); // 오류 발생시 bgm 중
             cleared_all = 0;
             break;
         }
@@ -200,6 +205,12 @@ int main(int argc, char *argv[])
                 printf("트랩을 밟았습니다!\n");
 
                 stop_bgm();
+
+                const char *tts_game_out_command = "espeak -a 200 -v en-us+m5 -s 140 'Game Out!'";
+                fflush(stdout);
+                // TTS 음성 출력 (Blocking)
+                system(tts_game_out_command);
+
                 play_obstacle_caught_sound(gameover_bgm_path);
 
                 stage_failed = 1;
@@ -210,7 +221,13 @@ int main(int argc, char *argv[])
 
             if (check_collision(&stage, &player)) // 충돌 체크
             {
-                stop_bgm();                                    // 충돌 시 기존 BGM 중지
+                stop_bgm(); // 충돌 시 기존 BGM 중지
+
+                const char *tts_game_out_command = "espeak -a 200 -v en-us+m5 -s 140 'Game Out!'";
+                fflush(stdout);
+                // TTS 음성 출력 (Blocking)
+                system(tts_game_out_command);
+
                 play_obstacle_caught_sound(gameover_bgm_path); // 장애물 게임오버 사운드 재생 (Blocking)
                 stage_failed = 1;
                 pthread_mutex_unlock(&g_stage_mutex);
@@ -380,7 +397,11 @@ int main(int argc, char *argv[])
 
         if (stage_cleared)
         {
-            play_sfx_nonblocking(next_level_sound_path); // 다음 레벨 전환 사운드 재생 (논블로킹)
+            const char *tts_clear_command = "espeak -a 180 -v en-us+m3 'Clear!'";
+            fflush(stdout);
+            system(tts_clear_command);
+
+            play_sfx_nonblocking(next_level_sound_path);
 
             printf("스테이지 %s 출튀 성공!\n", stage.name);
             fflush(stdout);
@@ -397,6 +418,11 @@ int main(int argc, char *argv[])
     double best_time = load_best_record();
     if (cleared_all && g_running)
     {
+        const char *tts_game_clear_command = "espeak -a 180 -v en-us+m5 -s 140 'Game Clear!'";
+        fflush(stdout);
+        // TTS 음성 출력 (Blocking)
+        system(tts_game_clear_command);
+
         if (playing_full_campaign)
         {
             printf("모든 스테이지 클리어!\n");

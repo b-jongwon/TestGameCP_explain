@@ -227,7 +227,7 @@ int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double dt)
 }
 
 static const PatternFunc kPatterns[] = {
-    NULL,            // 0 (Not used)
+    NULL,             // 0 (Not used)
     pattern_stage_b1, // Stage 1
     pattern_stage_1f, // Stage 2
     pattern_stage_2f, // Stage 3

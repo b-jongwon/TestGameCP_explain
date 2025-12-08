@@ -15,6 +15,7 @@
 static pid_t bgm_pid = -1;
 static int aplay_available = -1;
 static int espeak_available = -1;
+static int say_available = -1; // ✅ [추가] macOS 'say' 명령어의 가용성 캐시
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -182,7 +183,7 @@ void stop_bgm()
 }
 
 // ----------------------------------------------------
-// ✅ [추가된 함수] 논블로킹 효과음 재생 (아이템 획득용)
+// 논블로킹 효과음 재생 (아이템 획득용)
 // ----------------------------------------------------
 
 /**
@@ -242,5 +243,50 @@ void play_obstacle_caught_sound(const char *filePath)
     if (system(command) == -1)
     {
         perror("Error executing sound command for obstacle");
+    }
+}
+
+// ----------------------------------------------------
+// TTS 음성 출력 (Blocking)
+// ----------------------------------------------------
+
+/**
+ * TTS 엔진을 사용하여 텍스트를 음성으로 출력합니다. (Blocking)
+ * 🚨 OS 환경에 따라 'say', 'espeak' 등의 명령어를 자동으로 시도합니다.
+ */
+void speak_tts_blocking(const char *text)
+{
+    char command[512];
+
+    // 1. macOS 'say' 명령어 시도 (말하는 속도 -r 200 설정으로 명료성 증대)
+    if (ensure_command_available("say", &say_available, NULL))
+    {
+        if (snprintf(command, sizeof(command), "say -r 200 '%s'", text) < (int)sizeof(command))
+        {
+            goto execute;
+        }
+    }
+
+    // 2. Linux 'espeak' 명령어 시도 (볼륨 -a 180 설정으로 음량 증폭)
+    else if (ensure_command_available("espeak", &espeak_available, "espeak"))
+    {
+        if (snprintf(command, sizeof(command), "espeak -v en-uk 200 '%s'", text) < (int)sizeof(command))
+        {
+            goto execute;
+        }
+    }
+
+    // 3. TTS 명령어 없음
+    else
+    {
+        fprintf(stderr, "TTS 명령을 실행할 수 없습니다. (say 또는 espeak 설치 필요)\n");
+        return;
+    }
+
+execute:
+    // system() 호출: TTS 재생이 끝날 때까지 메인 프로세스를 블로킹
+    if (system(command) == -1)
+    {
+        fprintf(stderr, "Error executing TTS command: %s\n", command);
     }
 }

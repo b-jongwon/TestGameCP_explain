@@ -16,14 +16,6 @@
 
 #define TILE_SIZE 32
 
-// 화면 비율 및 타일 배율이 맵 크기에 따라 흔들리지 않도록 고정 해상도를 사용한다.
-#define WINDOW_WIDTH 1280
-#define WINDOW_HEIGHT 720
-
-#define VIEWPORT_TILES_X 26
-#define VIEWPORT_TILES_Y 15
-#define CAMERA_TILE_PADDING 1
-
 typedef enum
 {
     PLAYER_VARIANT_NORMAL = 0,
@@ -50,24 +42,6 @@ typedef struct
     const char *step_b;
 } PlayerTextureSet;
 
-// 플레이어 기준으로 화면 중앙을 유지하기 위해 사용하는 가상 카메라.
-// - pixel_x/pixel_y는 현재 뷰포트의 월드 좌표(픽셀) 기준 좌상단 위치.
-// - tile_start/end는 현재 프레임에서 실제로 그려야 하는 타일 범위를 나타낸다.
-typedef struct
-{
-    double pixel_x;
-    double pixel_y;
-    int tile_start_x;
-    int tile_end_x;
-    int tile_start_y;
-    int tile_end_y;
-    int tile_size;
-    int viewport_pixel_w;
-    int viewport_pixel_h;
-    int viewport_offset_x;
-    int viewport_offset_y;
-} Camera;
-
 static const PlayerTextureSet PLAYER_TEXTURE_PATHS[PLAYER_VARIANT_COUNT][PLAYER_FACING_COUNT] = {
     [PLAYER_VARIANT_NORMAL] = {
         [PLAYER_FACING_DOWN] = {
@@ -87,11 +61,6 @@ static SDL_Renderer *g_renderer = NULL;
 static SDL_Texture *g_tex_floor = NULL;
 static SDL_Texture *g_tex_wall = NULL;
 static SDL_Texture *g_tex_goal = NULL;
-static SDL_Texture *g_tex_pulpit = NULL;
-static SDL_Texture *g_tex_wall_left_wood = NULL;
-static SDL_Texture *g_tex_wall_left_metal = NULL;
-static SDL_Texture *g_tex_wall_right_wood = NULL;
-static SDL_Texture *g_tex_wall_right_metal = NULL;
 
 static SDL_Texture *g_tex_professor_1 = NULL; // 스테이지별 교수님
 static SDL_Texture *g_tex_professor_2 = NULL;
@@ -118,19 +87,6 @@ static SDL_Texture *g_tex_exit = NULL;
 static SDL_Texture *g_player_textures[PLAYER_VARIANT_COUNT][PLAYER_FACING_COUNT][PLAYER_FRAME_COUNT] = {{{NULL}}};
 static int g_window_w = 0;
 static int g_window_h = 0;
-static int g_tile_render_size = TILE_SIZE;
-
-static void update_tile_render_metrics(void)
-{
-    int size_from_width = WINDOW_WIDTH / VIEWPORT_TILES_X;
-    int size_from_height = WINDOW_HEIGHT / VIEWPORT_TILES_Y;
-    int selected = (size_from_width < size_from_height) ? size_from_width : size_from_height;
-    if (selected <= 0)
-    {
-        selected = TILE_SIZE;
-    }
-    g_tile_render_size = selected;
-}
 
 static int is_tile_blocking_vision(const Stage *stage, int x, int y)
 {
@@ -143,7 +99,7 @@ static int is_tile_blocking_vision(const Stage *stage, int x, int y)
         return 1;
 
     char cell = stage->map[y][x];
-    return is_tile_opaque_char(cell);
+    return (cell == '#' || cell == '@');
 }
 
 static int has_line_of_sight(const Stage *stage, int start_x, int start_y, int target_x, int target_y)
@@ -235,66 +191,6 @@ static void compute_visibility(const Stage *stage, const Player *player, unsigne
     }
 }
 
-// 플레이어의 중심을 화면 가운데에 두고, 맵 경계에서는 자연스럽게 클램핑하기 위한 카메라 계산 함수.
-static void compute_camera(const Stage *stage, const Player *player, Camera *camera)
-{
-    if (!stage || !player || !camera)
-    {
-        return;
-    }
-
-    const int stage_width = (stage->width > 0) ? stage->width : MAX_X;
-    const int stage_height = (stage->height > 0) ? stage->height : MAX_Y;
-
-    const int tile_size = g_tile_render_size;
-    const int viewport_w = tile_size * VIEWPORT_TILES_X;
-    const int viewport_h = tile_size * VIEWPORT_TILES_Y;
-    const int viewport_offset_x = (WINDOW_WIDTH - viewport_w) / 2;
-    const int viewport_offset_y = (WINDOW_HEIGHT - viewport_h) / 2;
-
-    camera->tile_size = tile_size;
-    camera->viewport_pixel_w = viewport_w;
-    camera->viewport_pixel_h = viewport_h;
-    camera->viewport_offset_x = viewport_offset_x;
-    camera->viewport_offset_y = viewport_offset_y;
-
-    const double player_world_x = (double)player->world_x / SUBPIXELS_PER_TILE;
-    const double player_world_y = (double)player->world_y / SUBPIXELS_PER_TILE;
-    const double player_pixel_x = player_world_x * tile_size;
-    const double player_pixel_y = player_world_y * tile_size;
-
-    double desired_x = player_pixel_x + (tile_size / 2.0) - (viewport_w / 2.0);
-    double desired_y = player_pixel_y + (tile_size / 2.0) - (viewport_h / 2.0);
-
-    const double stage_pixel_w = stage_width * tile_size;
-    const double stage_pixel_h = stage_height * tile_size;
-    const double max_camera_x = (stage_pixel_w > viewport_w) ? (stage_pixel_w - viewport_w) : 0.0;
-    const double max_camera_y = (stage_pixel_h > viewport_h) ? (stage_pixel_h - viewport_h) : 0.0;
-
-    if (desired_x < 0.0)
-        desired_x = 0.0;
-    else if (desired_x > max_camera_x)
-        desired_x = max_camera_x;
-
-    if (desired_y < 0.0)
-        desired_y = 0.0;
-    else if (desired_y > max_camera_y)
-        desired_y = max_camera_y;
-
-    camera->pixel_x = desired_x;
-    camera->pixel_y = desired_y;
-
-    camera->tile_start_x = (int)floor(camera->pixel_x / tile_size) - CAMERA_TILE_PADDING;
-    camera->tile_start_y = (int)floor(camera->pixel_y / tile_size) - CAMERA_TILE_PADDING;
-    if (camera->tile_start_x < 0)
-        camera->tile_start_x = 0;
-    if (camera->tile_start_y < 0)
-        camera->tile_start_y = 0;
-
-    camera->tile_end_x = (int)ceil((camera->pixel_x + viewport_w) / tile_size) + CAMERA_TILE_PADDING;
-    camera->tile_end_y = (int)ceil((camera->pixel_y + viewport_h) / tile_size) + CAMERA_TILE_PADDING;
-}
-
 static SDL_Texture *load_texture(const char *path)
 {
     SDL_Surface *surface = IMG_Load(path);
@@ -324,69 +220,43 @@ static void destroy_texture(SDL_Texture **texture)
     }
 }
 
-static int is_rect_visible(const SDL_Rect *rect)
-{
-    return !(rect->x + rect->w <= 0 || rect->y + rect->h <= 0 || rect->x >= WINDOW_WIDTH || rect->y >= WINDOW_HEIGHT);
-}
-
-static void draw_texture_with_pixel_offset(SDL_Texture *texture, int x, int y, int offset_x, int offset_y, const Camera *camera)
+static void draw_texture_with_pixel_offset(SDL_Texture *texture, int x, int y, int offset_x, int offset_y)
 {
     if (!texture)
     {
         return;
     }
 
-    const int tile_size = camera->tile_size;
-    SDL_Rect dst = {camera->viewport_offset_x + x * tile_size - (int)camera->pixel_x + offset_x,
-                    camera->viewport_offset_y + y * tile_size - (int)camera->pixel_y + offset_y,
-                    tile_size,
-                    tile_size};
-    if (!is_rect_visible(&dst))
-    {
-        return;
-    }
+    SDL_Rect dst = {x * TILE_SIZE + offset_x, y * TILE_SIZE + offset_y, TILE_SIZE, TILE_SIZE};
     SDL_RenderCopy(g_renderer, texture, NULL, &dst);
 }
 
-static void draw_texture_at_world(SDL_Texture *texture, double world_x, double world_y, const Camera *camera)
+static void draw_texture_at_world(SDL_Texture *texture, double world_x, double world_y)
 {
     if (!texture)
         return;
 
-    const int tile_size = camera->tile_size;
-    SDL_Rect dst = {camera->viewport_offset_x + (int)lround(world_x * tile_size - camera->pixel_x),
-                    camera->viewport_offset_y + (int)lround(world_y * tile_size - camera->pixel_y),
-                    tile_size,
-                    tile_size};
-    if (!is_rect_visible(&dst))
-    {
-        return;
-    }
+    SDL_Rect dst = {(int)lround(world_x * TILE_SIZE), (int)lround(world_y * TILE_SIZE), TILE_SIZE, TILE_SIZE};
     SDL_RenderCopy(g_renderer, texture, NULL, &dst);
 }
 
-static void draw_texture_scaled(SDL_Texture *texture, double world_x, double world_y, double scale, const Camera *camera)
+static void draw_texture_scaled(SDL_Texture *texture, double world_x, double world_y, double scale)
 {
     if (!texture)
     {
         return;
     }
 
-    const int base_size = camera->tile_size;
-    const int width = (int)lround(base_size * scale);
-    const int height = (int)lround(base_size * scale);
+    const int width = (int)lround(TILE_SIZE * scale);
+    const int height = (int)lround(TILE_SIZE * scale);
 
-    const int offset_x = (base_size - width) / 2;
-    const int offset_y = (base_size - height) / 2;
+    const int offset_x = (TILE_SIZE - width) / 2;
+    const int offset_y = (TILE_SIZE - height) / 2;
 
-    SDL_Rect dst = {camera->viewport_offset_x + (int)lround(world_x * base_size - camera->pixel_x) + offset_x,
-                    camera->viewport_offset_y + (int)lround(world_y * base_size - camera->pixel_y) + offset_y,
+    SDL_Rect dst = {(int)lround(world_x * TILE_SIZE) + offset_x,
+                    (int)lround(world_y * TILE_SIZE) + offset_y,
                     width,
                     height};
-    if (!is_rect_visible(&dst))
-    {
-        return;
-    }
     SDL_RenderCopy(g_renderer, texture, NULL, &dst);
 }
 
@@ -415,14 +285,14 @@ int init_renderer(void)
 
     SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
 
-    const int initial_w = WINDOW_WIDTH;
-    const int initial_h = WINDOW_HEIGHT;
+    const int initial_w = 800;
+    const int initial_h = 600;
     g_window = SDL_CreateWindow("Professor Dodge",
                                 SDL_WINDOWPOS_CENTERED,
                                 SDL_WINDOWPOS_CENTERED,
                                 initial_w,
                                 initial_h,
-                                SDL_WINDOW_SHOWN);
+                                SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!g_window)
     {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -445,20 +315,8 @@ int init_renderer(void)
     g_window_w = initial_w;
     g_window_h = initial_h;
 
-    if (SDL_RenderSetLogicalSize(g_renderer, WINDOW_WIDTH, WINDOW_HEIGHT) != 0)
-    {
-        fprintf(stderr, "SDL_RenderSetLogicalSize failed: %s\n", SDL_GetError());
-    }
-
-    update_tile_render_metrics();
-
     g_tex_floor = load_texture("assets/image/floor64.png");
     g_tex_wall = load_texture("assets/image/wall64.png");
-    g_tex_pulpit = load_texture("assets/image/pulpit64.png");
-    g_tex_wall_left_wood = load_texture("assets/image/w_left.png");
-    g_tex_wall_left_metal = load_texture("assets/image/m_left.png");
-    g_tex_wall_right_wood = load_texture("assets/image/w_right.PNG");
-    g_tex_wall_right_metal = load_texture("assets/image/m_right.png");
     g_tex_goal = load_texture("assets/image/backpack64.png");
     g_tex_exit = load_texture("assets/image/exit.PNG");
 
@@ -486,8 +344,7 @@ int init_renderer(void)
     if (!g_tex_projectile || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
         return -1;
 
-    if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor_1 || !g_tex_exit || !g_tex_pulpit ||
-        !g_tex_wall_left_wood || !g_tex_wall_left_metal || !g_tex_wall_right_wood || !g_tex_wall_right_metal)
+    if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor_1 || !g_tex_exit)
     {
         return -1;
     }
@@ -520,11 +377,6 @@ void shutdown_renderer(void)
 {
     destroy_texture(&g_tex_floor);
     destroy_texture(&g_tex_wall);
-    destroy_texture(&g_tex_pulpit);
-    destroy_texture(&g_tex_wall_left_wood);
-    destroy_texture(&g_tex_wall_left_metal);
-    destroy_texture(&g_tex_wall_right_wood);
-    destroy_texture(&g_tex_wall_right_metal);
     destroy_texture(&g_tex_goal);
     destroy_texture(&g_tex_exit);
 
@@ -576,13 +428,16 @@ void shutdown_renderer(void)
 
 static void ensure_window_matches_stage(const Stage *stage)
 {
-    (void)stage; // 맵 크기와 무관하게 고정 해상도를 강제한다.
-
-    if (!g_window || !g_renderer)
+    if (!g_window || !g_renderer || !stage)
         return;
 
-    const int target_w = WINDOW_WIDTH;
-    const int target_h = WINDOW_HEIGHT;
+    int target_w = stage->width * TILE_SIZE;
+    int target_h = stage->height * TILE_SIZE;
+
+    if (target_w <= 0)
+        target_w = TILE_SIZE * 10;
+    if (target_h <= 0)
+        target_h = TILE_SIZE * 10;
 
     if (target_w != g_window_w || target_h != g_window_h)
     {
@@ -590,85 +445,24 @@ static void ensure_window_matches_stage(const Stage *stage)
         SDL_RenderSetLogicalSize(g_renderer, target_w, target_h);
         g_window_w = target_w;
         g_window_h = target_h;
-        update_tile_render_metrics();
     }
 }
 
-static SDL_Texture *texture_for_static_obstacle(char cell)
+static SDL_Texture *texture_for_cell(char cell)
 {
-    switch (cell)
-    {
-    case 'm':
-        return g_tex_wall_left_metal ? g_tex_wall_left_metal : g_tex_wall;
-    case 'w':
-        return g_tex_wall_left_wood ? g_tex_wall_left_wood : g_tex_wall;
-    case 'M':
-        return g_tex_wall_right_metal ? g_tex_wall_right_metal : g_tex_wall;
-    case 'W':
-        return g_tex_wall_right_wood ? g_tex_wall_right_wood : g_tex_wall;
-    case 'l':
-        return g_tex_wall_left_wood ? g_tex_wall_left_wood : g_tex_wall;
-    case 'L':
-        return g_tex_wall_left_metal ? g_tex_wall_left_metal : g_tex_wall;
-    case 'r':
-        return g_tex_wall_right_wood ? g_tex_wall_right_wood : g_tex_wall;
-    case 'R':
-        return g_tex_wall_right_metal ? g_tex_wall_right_metal : g_tex_wall;
-    default:
-        return NULL;
-    }
-}
-
-static SDL_Texture *texture_for_cell(char logic_cell, char render_cell)
-{
-    int force_logic_visual = (logic_cell == 'T') || is_tile_opaque_char(logic_cell);
-    char base_char;
-    if (force_logic_visual)
-    {
-        base_char = logic_cell;
-    }
-    else if (render_cell != '\0')
-    {
-        base_char = render_cell;
-    }
-    else
-    {
-        base_char = ' ';
-    }
-
-    if (base_char == 'T')
-    {
-        return g_tex_trap;
-    }
-
-    if (is_tile_opaque_char(base_char))
-    {
+    if (cell == '#' || cell == '@')
         return g_tex_wall;
-    }
 
-    switch (base_char)
-    {
-    case 'p':
-    case 'P':
-        return g_tex_pulpit ? g_tex_pulpit : g_tex_floor;
-    default:
-        return g_tex_floor;
-    }
+    if (cell == 'T')
+        return g_tex_trap;
+    return g_tex_floor;
 }
 
-static void draw_texture(SDL_Texture *texture, int x, int y, const Camera *camera)
+static void draw_texture(SDL_Texture *texture, int x, int y)
 {
     if (!texture)
         return;
-    const int tile_size = camera->tile_size;
-    SDL_Rect dst = {camera->viewport_offset_x + x * tile_size - (int)camera->pixel_x,
-                    camera->viewport_offset_y + y * tile_size - (int)camera->pixel_y,
-                    tile_size,
-                    tile_size};
-    if (!is_rect_visible(&dst))
-    {
-        return;
-    }
+    SDL_Rect dst = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
     SDL_RenderCopy(g_renderer, texture, NULL, &dst);
 }
 
@@ -685,43 +479,16 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     unsigned char visibility[MAX_Y][MAX_X];
     compute_visibility(stage, player, visibility);
 
-    Camera camera = {0};
-    compute_camera(stage, player, &camera);
-
-    int draw_start_x = camera.tile_start_x;
-    if (draw_start_x < 0)
-        draw_start_x = 0;
-    int draw_end_x = camera.tile_end_x;
-    if (draw_end_x > stage_width)
-        draw_end_x = stage_width;
-
-    int draw_start_y = camera.tile_start_y;
-    if (draw_start_y < 0)
-        draw_start_y = 0;
-    int draw_end_y = camera.tile_end_y;
-    if (draw_end_y > stage_height)
-        draw_end_y = stage_height;
-
     SDL_SetRenderDrawColor(g_renderer, 15, 15, 15, 255);
     SDL_RenderClear(g_renderer);
 
-    for (int y = draw_start_y; y < draw_end_y; y++)
+    for (int y = 0; y < stage_height; y++)
     {
-        for (int x = draw_start_x; x < draw_end_x; x++)
+        for (int x = 0; x < stage_width; x++)
         {
-            char logic_cell = stage->map[y][x];
-            char render_cell = stage->render_map[y][x];
-            SDL_Texture *base = texture_for_cell(logic_cell, render_cell);
-            draw_texture(base, x, y, &camera);
-
-            if (is_static_student_tile(logic_cell))
-            {
-                SDL_Texture *overlay = texture_for_static_obstacle(logic_cell);
-                if (overlay)
-                {
-                    draw_texture(overlay, x, y, &camera);
-                }
-            }
+            char cell = stage->map[y][x];
+            SDL_Texture *base = texture_for_cell(cell);
+            draw_texture(base, x, y);
         }
     }
 
@@ -733,7 +500,8 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
         if (gx >= 0 && gy >= 0)
         {
             int offset = (int)round(sin(elapsed_time * 6.0) * 2);
-            draw_texture_with_pixel_offset(g_tex_goal, gx, gy, 0, offset, &camera);
+            SDL_Rect dst = {gx * TILE_SIZE, gy * TILE_SIZE + offset, TILE_SIZE, TILE_SIZE};
+            SDL_RenderCopy(g_renderer, g_tex_goal, NULL, &dst);
         }
     }
 
@@ -744,7 +512,8 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
 
         if (fx >= 0 && fy >= 0)
         {
-            draw_texture(g_tex_exit, fx, fy, &camera);
+            SDL_Rect dst = {fx * TILE_SIZE, fy * TILE_SIZE, TILE_SIZE, TILE_SIZE};
+            SDL_RenderCopy(g_renderer, g_tex_exit, NULL, &dst);
         }
     }
 
@@ -811,7 +580,7 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
                 continue;
             if (!visibility[tile_y][tile_x])
                 continue;
-            draw_texture_at_world(tex_to_draw, obstacle_world_x, obstacle_world_y, &camera);
+            draw_texture_at_world(tex_to_draw, obstacle_world_x, obstacle_world_y);
         }
     }
 
@@ -851,7 +620,7 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             continue;
         if (!visibility[tile_y][tile_x])
             continue;
-        draw_texture_with_pixel_offset(item_tex, tile_x, tile_y, 0, offset_y, &camera);
+        draw_texture_with_pixel_offset(item_tex, tile_x, tile_y, 0, offset_y);
     } // 아이템 렌더링
 
     for (int i = 0; i < stage->num_projectiles; i++)
@@ -867,7 +636,7 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
                 continue;
             if (!visibility[tile_y][tile_x])
                 continue;
-            draw_texture_at_world(g_tex_projectile, projectile_world_x, projectile_world_y, &camera);
+            draw_texture_at_world(g_tex_projectile, projectile_world_x, projectile_world_y);
         }
     } // 투사체 렌더링
 
@@ -911,11 +680,11 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     }
     double player_world_x = (double)player->world_x / SUBPIXELS_PER_TILE;
     double player_world_y = (double)player->world_y / SUBPIXELS_PER_TILE;
-    draw_texture_at_world(player_tex, player_world_x, player_world_y, &camera);
+    draw_texture_at_world(player_tex, player_world_x, player_world_y);
 
     if (player->shield_count > 0 && g_tex_shield_on)
     {
-        draw_texture_scaled(g_tex_shield_on, player_world_x, player_world_y, 1.2, &camera);
+        draw_texture_scaled(g_tex_shield_on, player_world_x, player_world_y, 1.2);
     }
 
     if (player->is_confused)
@@ -937,20 +706,13 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
 
     SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
     SDL_SetRenderDrawColor(g_renderer, 40, 40, 40, 200);
-    for (int y = draw_start_y; y < draw_end_y; ++y)
+    for (int y = 0; y < stage_height; ++y)
     {
-        for (int x = draw_start_x; x < draw_end_x; ++x)
+        for (int x = 0; x < stage_width; ++x)
         {
             if (!visibility[y][x])
             {
-                SDL_Rect fog = {camera.viewport_offset_x + x * camera.tile_size - (int)camera.pixel_x,
-                                camera.viewport_offset_y + y * camera.tile_size - (int)camera.pixel_y,
-                                camera.tile_size,
-                                camera.tile_size};
-                if (!is_rect_visible(&fog))
-                {
-                    continue;
-                }
+                SDL_Rect fog = {x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE};
                 SDL_RenderFillRect(g_renderer, &fog);
             }
         }
