@@ -6,7 +6,7 @@
 
 typedef int (*PatternFunc)(Stage *, Obstacle *, Player *, double);
 
-int pattern_stage_1(Stage *stage, Obstacle *prof, Player *player, double delta_time)
+int pattern_stage_b1(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
 
     return 1;
@@ -17,7 +17,7 @@ int pattern_stage_1(Stage *stage, Obstacle *prof, Player *player, double delta_t
  * - 교수 캐릭터에 발각시
  *   1) 플레이어 시야 혼란 상태 (전반적인 화면 밝기 어두워짐)
  */
-int pattern_stage_2(Stage *stage, Obstacle *prof, Player *player, double delta_time)
+int pattern_stage_1f(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
     (void)stage;
 
@@ -70,7 +70,7 @@ int pattern_stage_2(Stage *stage, Obstacle *prof, Player *player, double delta_t
  *   1) 일정 주기(2.5초)마다 플레이어의 근처 벽 타일로 순간 이동
  *   2) 교수 캐릭터 1.4배 가속 추격
  */
-int pattern_stage_3(Stage *stage, Obstacle *prof, Player *player, double delta_time)
+int pattern_stage_2f(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
     player->is_confused = 0; // 2단계(1층) 상태 초기화
 
@@ -145,7 +145,7 @@ int pattern_stage_3(Stage *stage, Obstacle *prof, Player *player, double delta_t
     return 1;
 }
 
-int pattern_stage_4(Stage *stage, Obstacle *prof, Player *player, double delta_time)
+int pattern_stage_3f(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
 
     return 1;
@@ -157,7 +157,7 @@ int pattern_stage_4(Stage *stage, Obstacle *prof, Player *player, double delta_t
  *   1) 순간적으로 강한 감속
  *   2) 천천히 원래 속도로 회복
  */
-int pattern_stage_5(Stage *stage, Obstacle *prof, Player *player, double delta_time)
+int pattern_stage_4f(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
     (void)stage;
     if (!prof || !player)
@@ -213,14 +213,14 @@ int pattern_stage_5(Stage *stage, Obstacle *prof, Player *player, double delta_t
     return 1; // 이동은 그대로 진행
 }
 
-int pattern_stage_6(Stage *stage, Obstacle *prof, Player *player, double dt)
+int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double dt)
 {
     // 1~5의 패턴을 모두 적용
-    int p1 = pattern_stage_1(stage, prof, player, dt);
-    int p2 = pattern_stage_2(stage, prof, player, dt);
-    int p3 = pattern_stage_3(stage, prof, player, dt);
-    int p4 = pattern_stage_4(stage, prof, player, dt);
-    int p5 = pattern_stage_5(stage, prof, player, dt);
+    int p1 = pattern_stage_b1(stage, prof, player, dt);
+    int p2 = pattern_stage_1f(stage, prof, player, dt);
+    int p3 = pattern_stage_2f(stage, prof, player, dt);
+    int p4 = pattern_stage_3f(stage, prof, player, dt);
+    int p5 = pattern_stage_4f(stage, prof, player, dt);
 
     return (p1 && p2 && p3 && p4 && p5);
 }
