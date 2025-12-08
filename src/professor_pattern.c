@@ -3,6 +3,7 @@
 #include "../include/professor_pattern.h"
 #include <stdio.h>
 #include <math.h>
+#include <stdlib.h>
 
 typedef int (*PatternFunc)(Stage *, Obstacle *, Player *, double);
 
