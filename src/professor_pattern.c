@@ -971,25 +971,26 @@ int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double delta_
             should_move = 0;
         }
     }
-    // Phase 3: 순간 이동 
-   /* else   
+   else 
     {
-        player->is_confused = ALWAYS_DARK;
+        // 1. 시야 차단 해제 (이 코드가 있어야 화면이 밝아집니다)
+        player->is_confused = ALWAYS_DARK; 
 
+         // 순간이동 기능은 주석처리
+        /*
         if (loop_time - 7.0 < delta_time * 1.5)
         {
             int px = player->world_x / SUBPIXELS_PER_TILE;
             int py = player->world_y / SUBPIXELS_PER_TILE;
-            int offset_x = (rand() % 5) - 2;
-            int offset_y = (rand() % 5) - 2;
-            prof->world_x = (px + offset_x) * SUBPIXELS_PER_TILE;
-            prof->world_y = (py + offset_y) * SUBPIXELS_PER_TILE;
-
-            should_move = 0; // 👈 [수정] 순간이동 한 프레임은 이동 로직 건너뜀
+            // ... (좌표 계산 로직) ...
+            prof->world_x = ...;
+            prof->world_y = ...;
+            
+            should_move = 0; 
         }
-    } 
-        // 난이도 조절을 위해 주석처리    
-    */
+        */
+        
+    }
 
     decay_professor_clones(stage, delta_time);
 
