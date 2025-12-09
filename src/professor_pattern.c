@@ -719,7 +719,20 @@ int pattern_stage_4f(Stage *stage, Obstacle *prof, Player *player, double delta_
     if (!prof || !player)
         return 1;
 
-    // 교수에게 아직 안 걸렸으면: 패턴 효과 없음 + 속도 원상복귀
+   
+    const char *PROF_LV5_SFX_PATH = "bgm/Professor_lv5.wav";
+
+    if (prof->alert && prof->p_timer == 0.0)
+    {
+        play_sfx_nonblocking(PROF_LV5_SFX_PATH);
+
+        prof->p_timer = 0.1;
+    }
+    else if (!prof->alert)
+    {
+        prof->p_timer = 0.0;
+    }
+
     if (!prof->alert)
     {
         prof->p_timer = 0.0;
