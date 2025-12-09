@@ -24,4 +24,12 @@ void shutdown_renderer(void);
 
 void render(const Stage *stage, const Player *player, double elapsed_time, int current_stage, int total_stages);
 
+// 비플레이 상태 화면 렌더러.
+// - 시작 화면: 메뉴 선택 상태를 받아 오른쪽 패널에 하이라이트를 표시.
+// - 기록 화면: 최고 기록을 전달받아 텍스트 UI 렌더링.
+// - 게임오버 화면: 실패 상태에서 사용자 입력 대기 중 표시.
+void render_title_screen(int selected_index);
+void render_records_screen(double best_time);
+void render_game_over_screen(void);
+
 #endif // RENDER_H

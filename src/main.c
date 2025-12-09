@@ -1,37 +1,81 @@
+#include <SDL2/SDL.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <sys/time.h>
 #include <time.h>
+#include <unistd.h>
 
-#include "../include/game.h"
-#include "../include/stage.h"
-#include "../include/player.h"
-#include "../include/obstacle.h"
-#include "../include/professor_pattern.h"
-#include "../include/render.h"
-#include "../include/timer.h"
 #include "../include/fileio.h"
+#include "../include/game.h"
 #include "../include/input.h"
-#include "../include/signal_handler.h"
+#include "../include/obstacle.h"
+#include "../include/player.h"
+#include "../include/professor_pattern.h"
 #include "../include/projectile.h"
-#include "../include/sound.h" //bgm 추가
+#include "../include/render.h"
+#include "../include/signal_handler.h"
+#include "../include/sound.h"
+#include "../include/stage.h"
+#include "../include/timer.h"
 
 extern int is_goal_reached(const Stage *stage, const Player *player);
 extern int check_collision(Stage *stage, Player *player);
 
-static const double kScooterDurationSec = 20.0;
+typedef enum
+{
+    APP_STATE_TITLE = 0,
+    APP_STATE_RECORDS,
+    APP_STATE_GAMEPLAY,
+    APP_STATE_GAME_OVER,
+    APP_STATE_EXIT
+} AppState;
 
-static const double kWalkSfxIntervalBaseSec = 0.45;    // 기본 걷기 사운드 재생 간격 (초)
-static const double kWalkSfxIntervalScooterSec = 0.25; // 스쿠터 사용 시 걷기 사운드 재생 간격 (초, 더 짧게)
-static double g_last_walk_sfx_time = 0.0;              // 마지막 걷기 사운드 재생 시간
+typedef enum
+{
+    TITLE_MENU_START = 0,
+    TITLE_MENU_RECORDS,
+    TITLE_MENU_EXIT,
+    TITLE_MENU_COUNT
+} TitleMenuSelection;
+
+typedef enum
+{
+    GAMEPLAY_OUTCOME_ABORTED = 0,
+    GAMEPLAY_OUTCOME_CLEARED,
+    GAMEPLAY_OUTCOME_FAILED
+} GameplayOutcome;
+
+typedef struct
+{
+    const char *bgm_file_path;
+    const char *gameover_bgm_path;
+    const char *item_sound_path;
+    const char *item_use_sound_path;
+    const char *next_level_sound_path;
+    const char *bag_acquire_sound_path;
+    const char *walking_sound_path;
+    const char *no_item_sound_path;
+} SoundAssets;
+
+static const double kScooterDurationSec = 20.0;
+static const double kWalkSfxIntervalBaseSec = 0.45;
+static const double kWalkSfxIntervalScooterSec = 0.25;
+static double g_last_walk_sfx_time = 0.0;
+
+static int run_title_menu(void);
+static void run_records_view(void);
+static void run_game_over_view(void);
+static GameplayOutcome run_campaign(int start_stage_id,
+                                    int end_stage_id,
+                                    int stages_to_play,
+                                    int playing_full_campaign,
+                                    const SoundAssets *sounds);
+static void drain_pending_input(void);
 
 int main(int argc, char *argv[])
 {
     setup_signal_handlers();
-    // signal(SIGCHLD, SIG_IGN);
-    setup_signal_handlers();
-
     init_sound_system();
 
     if (init_renderer() != 0)
@@ -41,20 +85,16 @@ int main(int argc, char *argv[])
     }
 
     init_input();
-    const char *bgm_file_path = "bgm/BGM.wav";                // bgm 파일 경로 설정
-    const char *gameover_bgm_path = "bgm/bgm_GameOut.wav";    // 장애물 게임오버 bgm 파일 경로 설정
-    const char *item_sound_path = "bgm/Get_Item.wav";         // 아이템 획득 사운드 파일 경로 설정
-    const char *item_use_sound_path = "bgm/Use_Item.wav";     // 아이템 사용 사운드 파일 경로 설정
-    const char *next_level_sound_path = "bgm/Next_Level.wav"; // 스테이지 클리어, 다음 레벨 전환 사운드 파일 경로 설정
-    const char *bag_acquire_sound_path = "bgm/Get_Bag.wav";   // 가방 획득 사운드 파일 경로 설정
-    const char *walking_sound_path = "bgm/Walking.wav";       // 걷기 사운드 파일 경로 설정
-    const char *no_item_sound_path = "bgm/No_Item.wav";       // 아이템 없을 때 사운드 파일 경로 설정
-    // const char *wall_break_sound_path = "bgm/Break_wall.wav"; // 벽 부수기 사운드 파일 경로 설정
 
-    struct timeval global_start, global_end;
-    gettimeofday(&global_start, NULL);
-
-    int cleared_all = 1;
+    SoundAssets sounds = {
+        .bgm_file_path = "bgm/BGM.wav",
+        .gameover_bgm_path = "bgm/bgm_GameOut.wav",
+        .item_sound_path = "bgm/Get_Item.wav",
+        .item_use_sound_path = "bgm/Use_Item.wav",
+        .next_level_sound_path = "bgm/Next_Level.wav",
+        .bag_acquire_sound_path = "bgm/Get_Bag.wav",
+        .walking_sound_path = "bgm/Walking.wav",
+        .no_item_sound_path = "bgm/No_Item.wav"};
 
     const int available_stage_count = get_stage_count();
     int start_stage_id = 1;
@@ -64,7 +104,6 @@ int main(int argc, char *argv[])
 
     if (argc >= 2)
     {
-        // 사용자가 명시적으로 플레이할 맵을 지정한 경우, 해당 맵 하나만 로드한다.
         int requested_stage_id = find_stage_id_by_filename(argv[1]);
         if (requested_stage_id < 0)
         {
@@ -82,12 +121,167 @@ int main(int argc, char *argv[])
         printf("지정된 맵(%s)만 플레이합니다.\n", argv[1]);
     }
 
-    const char *tts_command = "espeak -a 200 -v en-us+m5 -s 160 'Game Start!'"; // -s: 속도, -p: 피치 조절
+    AppState state = APP_STATE_TITLE;
+    while (state != APP_STATE_EXIT && g_running)
+    {
+        switch (state)
+        {
+        case APP_STATE_TITLE:
+        {
+            int selection = run_title_menu();
+            if (!g_running)
+            {
+                state = APP_STATE_EXIT;
+                break;
+            }
+            if (selection == TITLE_MENU_START)
+            {
+                state = APP_STATE_GAMEPLAY;
+            }
+            else if (selection == TITLE_MENU_RECORDS)
+            {
+                state = APP_STATE_RECORDS;
+            }
+            else
+            {
+                state = APP_STATE_EXIT;
+            }
+            break;
+        }
+        case APP_STATE_RECORDS:
+            run_records_view();
+            state = APP_STATE_TITLE;
+            break;
+        case APP_STATE_GAMEPLAY:
+        {
+            GameplayOutcome outcome = run_campaign(start_stage_id,
+                                                   end_stage_id,
+                                                   stages_to_play,
+                                                   playing_full_campaign,
+                                                   &sounds);
+            if (!g_running)
+            {
+                state = APP_STATE_EXIT;
+                break;
+            }
+            if (outcome == GAMEPLAY_OUTCOME_FAILED)
+            {
+                state = APP_STATE_GAME_OVER;
+            }
+            else if (outcome == GAMEPLAY_OUTCOME_ABORTED)
+            {
+                state = APP_STATE_EXIT;
+            }
+            else
+            {
+                state = APP_STATE_TITLE;
+            }
+            break;
+        }
+        case APP_STATE_GAME_OVER:
+            run_game_over_view();
+            state = APP_STATE_TITLE;
+            break;
+        case APP_STATE_EXIT:
+        default:
+            state = APP_STATE_EXIT;
+            break;
+        }
+    }
 
+    stop_bgm();
+    restore_input();
+    shutdown_renderer();
+    return 0;
+}
+
+static int run_title_menu(void)
+{
+    int selection = TITLE_MENU_START;
+    drain_pending_input();
+    while (g_running)
+    {
+        render_title_screen(selection);
+        SDL_Delay(16);
+
+        int key = read_input();
+        if (key == -1)
+        {
+            continue;
+        }
+
+        if (key == 'w' || key == 'W')
+        {
+            selection = (selection + TITLE_MENU_COUNT - 1) % TITLE_MENU_COUNT;
+            continue;
+        }
+        if (key == 's' || key == 'S')
+        {
+            selection = (selection + 1) % TITLE_MENU_COUNT;
+            continue;
+        }
+        if (key == 'q' || key == 'Q')
+        {
+            return TITLE_MENU_EXIT;
+        }
+        if (key == '\r' || key == '\n' || key == ' ' || key == 'k' || key == 'K')
+        {
+            return selection;
+        }
+    }
+    return TITLE_MENU_EXIT;
+}
+
+static void run_records_view(void)
+{
+    double best_time = load_best_record();
+    drain_pending_input();
+    while (g_running)
+    {
+        render_records_screen(best_time);
+        SDL_Delay(16);
+        if (read_input() != -1)
+        {
+            break;
+        }
+    }
+}
+
+static void run_game_over_view(void)
+{
+    drain_pending_input();
+    while (g_running)
+    {
+        render_game_over_screen();
+        SDL_Delay(16);
+        if (read_input() != -1)
+        {
+            break;
+        }
+    }
+}
+
+static GameplayOutcome run_campaign(int start_stage_id,
+                                    int end_stage_id,
+                                    int stages_to_play,
+                                    int playing_full_campaign,
+                                    const SoundAssets *sounds)
+{
+    if (!sounds)
+    {
+        return GAMEPLAY_OUTCOME_ABORTED;
+    }
+
+    struct timeval global_start, global_end;
+    gettimeofday(&global_start, NULL);
+
+    int cleared_all = 1;
+    int failure_detected = 0;
+
+    const char *tts_start_command = "espeak -a 200 -v en-us+m5 -s 160 'Game Start!'";
     fflush(stdout);
-    system(tts_command);
-
-    play_bgm(bgm_file_path, 1); // BGM 재생 시작 (Non-blocking)
+    system(tts_start_command);
+    play_bgm(sounds->bgm_file_path, 1);
 
     for (int stage_id = start_stage_id, stage_counter = 0;
          stage_id <= end_stage_id && g_running;
@@ -98,23 +292,23 @@ int main(int argc, char *argv[])
         if (load_stage(&stage, stage_id) != 0)
         {
             fprintf(stderr, "Failed to load stage %d\n", stage_id);
-            stop_bgm(); // 오류 발생시 bgm 중
+            stop_bgm();
             cleared_all = 0;
+            failure_detected = 1;
             break;
         }
 
         Player player;
         init_player(&player, &stage);
-
-        g_last_walk_sfx_time = 0.0; // 스테이지 시작 시 걷기 사운드 타이머 초기화
+        g_last_walk_sfx_time = 0.0;
 
         set_obstacle_player_ref(&player);
-
         if (start_obstacle_thread(&stage) != 0)
         {
             fprintf(stderr, "Failed to start obstacle thread\n");
-            stop_bgm(); // 오류 발생시 bgm 중지
+            stop_bgm();
             cleared_all = 0;
+            failure_detected = 1;
             break;
         }
 
@@ -139,99 +333,68 @@ int main(int argc, char *argv[])
             }
             previous_elapsed = elapsed;
 
-            int move_finished = 0;
-
             pthread_mutex_lock(&g_stage_mutex);
-            move_finished = update_player_motion(&player, frame_delta);
+            int move_finished = update_player_motion(&player, frame_delta);
             if (!player.has_backpack &&
                 is_tile_center_inside_player(&player, stage.goal_x, stage.goal_y))
             {
                 player.has_backpack = 1;
                 stage.map[stage.goal_y][stage.goal_x] = ' ';
-
-                play_sfx_nonblocking(bag_acquire_sound_path); // 가방 획득 사운드 재생 (Non-blocking)
+                play_sfx_nonblocking(sounds->bag_acquire_sound_path);
             }
             render(&stage, &player, elapsed, current_stage_display, stages_to_play);
             pthread_mutex_unlock(&g_stage_mutex);
 
             if (move_finished)
             {
-                /*int held = current_direction_key();
-                if (held != -1)
-                {
-                    pthread_mutex_lock(&g_stage_mutex);
-                    move_player(&player, (char)held, &stage, elapsed);
-                    pthread_mutex_unlock(&g_stage_mutex);
-                }
-                    */
-
                 int held = current_direction_key();
                 if (held != -1)
                 {
                     pthread_mutex_lock(&g_stage_mutex);
-                    // 🔥 3. 꾹 누르고 있을 때도 사운드 재생 체크
                     double walk_interval = player.has_scooter ? kWalkSfxIntervalScooterSec : kWalkSfxIntervalBaseSec;
+                    move_player(&player, (char)held, &stage, elapsed);
                     if (elapsed - g_last_walk_sfx_time >= walk_interval)
                     {
-                        move_player(&player, (char)held, &stage, elapsed);
-                        play_sfx_nonblocking(walking_sound_path); // 걷기 사운드 재생 (논블로킹)
-                        g_last_walk_sfx_time = elapsed;           // 마지막 재생 시간 업데이트
-                    }
-                    else
-                    {
-                        move_player(&player, (char)held, &stage, elapsed);
+                        play_sfx_nonblocking(sounds->walking_sound_path);
+                        g_last_walk_sfx_time = elapsed;
                     }
                     pthread_mutex_unlock(&g_stage_mutex);
                 }
             }
-            // 충돌 그룹 처리 lock 구간------------------
-            pthread_mutex_lock(&g_stage_mutex);
 
+            pthread_mutex_lock(&g_stage_mutex);
             if (player.shield_count > 0)
             {
-                // 트랩, 일반 충돌 감지 여부를 확인 (쉴드 사용 조건)
                 if (check_trap_collision(&stage, &player) || check_collision(&stage, &player))
                 {
-                    player.shield_count--; // 쉴드 1개 소모
+                    player.shield_count--;
                     printf("쉴드로 방어 했습니다! 남은 쉴드: %d개\n", player.shield_count);
-
-                    // 쉴드 사용 피드백 사운드 재생 (논블로킹)
-                    play_sfx_nonblocking(item_use_sound_path);
-
+                    play_sfx_nonblocking(sounds->item_use_sound_path);
                     pthread_mutex_unlock(&g_stage_mutex);
-                    continue; // 👈 쉴드를 소모하고 Game Over 로직을 건너뛰고 루프를 재시작
+                    continue;
                 }
             }
 
-            if (check_trap_collision(&stage, &player)) /// 트랩 충돌 검사
+            if (check_trap_collision(&stage, &player))
             {
                 printf("트랩을 밟았습니다!\n");
-
                 stop_bgm();
-
                 const char *tts_game_out_command = "espeak -a 200 -v en-us+m5 -s 140 'Game Out!'";
                 fflush(stdout);
-                // TTS 음성 출력 (Blocking)
                 system(tts_game_out_command);
-
-                play_obstacle_caught_sound(gameover_bgm_path);
-
+                play_obstacle_caught_sound(sounds->gameover_bgm_path);
                 stage_failed = 1;
-
                 pthread_mutex_unlock(&g_stage_mutex);
                 break;
             }
 
-            if (check_collision(&stage, &player)) // 충돌 체크
+            if (check_collision(&stage, &player))
             {
-                stop_bgm(); // 충돌 시 기존 BGM 중지
-
+                stop_bgm();
                 const char *tts_game_out_command = "espeak -a 200 -v en-us+m5 -s 140 'Game Out!'";
                 fflush(stdout);
-                // TTS 음성 출력 (Blocking)
                 system(tts_game_out_command);
-
-                play_obstacle_caught_sound(gameover_bgm_path); // 장애물 게임오버 사운드 재생 (Blocking)
+                play_obstacle_caught_sound(sounds->gameover_bgm_path);
                 stage_failed = 1;
                 pthread_mutex_unlock(&g_stage_mutex);
                 break;
@@ -244,9 +407,8 @@ int main(int argc, char *argv[])
                 break;
             }
             pthread_mutex_unlock(&g_stage_mutex);
-            // 충돌 그룹 처리 lock 구간------------------
-            int key = poll_input();
 
+            int key = poll_input();
             if (key != -1)
             {
                 if (key == 'q' || key == 'Q')
@@ -254,43 +416,30 @@ int main(int argc, char *argv[])
                     g_running = 0;
                     break;
                 }
-                // --- 🔥 투사체 발사 ---
                 if (key == 'k' || key == 'K' || key == ' ')
                 {
                     pthread_mutex_lock(&g_stage_mutex);
-
-                    // 1. ✅ 투사체 잔여 개수 확인
                     if (stage.remaining_ammo > 0)
                     {
                         fire_projectile(&stage, &player);
-                        // fire_projectile 내부에서 stage.remaining_ammo가 감소한다고 가정합니다.
-                        play_sfx_nonblocking(item_use_sound_path); // 발사 성공 사운드
+                        play_sfx_nonblocking(sounds->item_use_sound_path);
                     }
-                    // 2. 🙅 [추가] 투사체가 없을 때
                     else
                     {
-                        // No_Item 사운드 재생 (논블로킹)
-                        play_sfx_nonblocking(no_item_sound_path);
+                        play_sfx_nonblocking(sounds->no_item_sound_path);
                     }
-
                     pthread_mutex_unlock(&g_stage_mutex);
-                    continue; // 이동 처리와 겹치지 않게 skip
+                    continue;
                 }
 
                 pthread_mutex_lock(&g_stage_mutex);
                 move_player(&player, (char)key, &stage, elapsed);
-
-                // play_sfx_nonblocking(walking_sound_path); // 걷기 사운드 재생 (논블로킹)
-
-                // pthread_mutex_unlock(&g_stage_mutex);
-
                 double walk_interval = player.has_scooter ? kWalkSfxIntervalScooterSec : kWalkSfxIntervalBaseSec;
                 if (elapsed - g_last_walk_sfx_time >= walk_interval)
                 {
-                    play_sfx_nonblocking(walking_sound_path); // 걷기 사운드 재생 (논블로킹)
-                    g_last_walk_sfx_time = elapsed;           // 마지막 재생 시간 업데이트
+                    play_sfx_nonblocking(sounds->walking_sound_path);
+                    g_last_walk_sfx_time = elapsed;
                 }
-
                 pthread_mutex_unlock(&g_stage_mutex);
             }
             else
@@ -300,7 +449,6 @@ int main(int argc, char *argv[])
                 pthread_mutex_unlock(&g_stage_mutex);
             }
 
-            // ===== 아이템 획득 체크 =====
             pthread_mutex_lock(&g_stage_mutex);
             for (int i = 0; i < stage.num_items; i++)
             {
@@ -317,13 +465,14 @@ int main(int argc, char *argv[])
                     continue;
                 }
 
-                it->active = 0; // 아이템 비활성화 (맵에서 사라짐)
+                it->active = 0;
+                play_sfx_nonblocking(sounds->item_sound_path);
 
                 switch (it->type)
                 {
                 case ITEM_TYPE_SHIELD:
-                    player.shield_count++; // 보호막 1개 획득
-                    printf("방어막을 획득했습니다! \n장애물을 1번 막아주고 처리 할수 있습니다. \n현재보유: %d개\n", player.shield_count);
+                    player.shield_count++;
+                    printf("보호막을 획득했습니다! 현재 보호막: %d개\n", player.shield_count);
                     break;
                 case ITEM_TYPE_SCOOTER:
                 {
@@ -332,31 +481,28 @@ int main(int argc, char *argv[])
                     player.speed_multiplier = scooter_multiplier;
                     player.move_speed = player.base_move_speed * player.speed_multiplier;
                     player.scooter_expire_time = elapsed + kScooterDurationSec;
-                    printf("스쿠터를 획득했습니다! 속도가 %.1f 배 빨라집니다. \n", player.speed_multiplier);
+                    printf("E-scooter 효과 활성화! %.1f초 동안 이동 속도 증가\n", player.speed_multiplier);
                     break;
                 }
                 case ITEM_TYPE_SUPPLY:
-                {
-                    // 투사체 상수에 정의된 값(5)만큼 증가
                     stage.remaining_ammo += SUPPLY_REFILL_AMOUNT;
-                    printf("야구공 +%d 증가! (현재 보유 야구공: %d개)\n", SUPPLY_REFILL_AMOUNT, stage.remaining_ammo);
+                    printf("탄약 보충! 남은 투사체: %d\n", stage.remaining_ammo);
                     break;
-                }
                 default:
                     break;
                 }
-
-                play_sfx_nonblocking(item_sound_path); // 아이템 획득 사운드 재생 (Non-blocking)
             }
+            pthread_mutex_unlock(&g_stage_mutex);
+
+            pthread_mutex_lock(&g_stage_mutex);
             if (player.has_scooter && player.scooter_expire_time > 0.0 && elapsed >= player.scooter_expire_time)
             {
                 player.has_scooter = 0;
                 player.speed_multiplier = 1.0;
                 player.move_speed = player.base_move_speed * player.speed_multiplier;
                 player.scooter_expire_time = 0.0;
-                printf("스쿠터 효과 끝.\n");
+                printf("E-scooter 효과가 종료되었습니다.\n");
             }
-
             pthread_mutex_unlock(&g_stage_mutex);
 
             ProfessorBulletResult bullet_result = PROFESSOR_BULLET_RESULT_NONE;
@@ -368,37 +514,31 @@ int main(int argc, char *argv[])
             if (bullet_result == PROFESSOR_BULLET_RESULT_SHIELD_BLOCKED)
             {
                 printf("교수의 탄환을 쉴드로 막았습니다! 남은 쉴드: %d개\n", player.shield_count);
-                play_sfx_nonblocking(item_use_sound_path);
+                play_sfx_nonblocking(sounds->item_use_sound_path);
             }
             else if (bullet_result == PROFESSOR_BULLET_RESULT_FATAL)
             {
                 stop_bgm();
-
                 const char *tts_game_out_command = "espeak -a 200 -v en-us+m5 -s 140 'Game Out!'";
                 fflush(stdout);
                 system(tts_game_out_command);
-                play_obstacle_caught_sound(gameover_bgm_path);
+                play_obstacle_caught_sound(sounds->gameover_bgm_path);
                 stage_failed = 1;
                 break;
             }
 
             struct timespec frame_end_ts;
             clock_gettime(CLOCK_MONOTONIC, &frame_end_ts);
-            double frame_time = (frame_end_ts.tv_sec - frame_start_ts.tv_sec) +
-                                (frame_end_ts.tv_nsec - frame_start_ts.tv_nsec) / 1e9;
-            const double target_frame = 1.0 / 60.0;
-            if (frame_time < target_frame)
+            double frame_time_ms = (frame_end_ts.tv_sec - frame_start_ts.tv_sec) * 1000.0 +
+                                   (frame_end_ts.tv_nsec - frame_start_ts.tv_nsec) / 1000000.0;
+            const double target_frame_time_ms = 16.67;
+            if (frame_time_ms < target_frame_time_ms)
             {
-                double sleep_sec = target_frame - frame_time;
-                if (sleep_sec > 0.0)
-                {
-                    struct timespec sleep_ts;
-                    sleep_ts.tv_sec = (time_t)sleep_sec;
-                    sleep_ts.tv_nsec = (long)((sleep_sec - sleep_ts.tv_sec) * 1e9);
-                    if (sleep_ts.tv_nsec < 0)
-                        sleep_ts.tv_nsec = 0;
-                    nanosleep(&sleep_ts, NULL);
-                }
+                double sleep_time_ms = target_frame_time_ms - frame_time_ms;
+                struct timespec sleep_ts = {
+                    .tv_sec = 0,
+                    .tv_nsec = (long)(sleep_time_ms * 1000000.0)};
+                nanosleep(&sleep_ts, NULL);
             }
         }
 
@@ -414,6 +554,7 @@ int main(int argc, char *argv[])
         {
             printf("지금까지 출튀 한 횟수는 %d 번!  게임종료.\n", current_stage_display);
             cleared_all = 0;
+            failure_detected = 1;
             break;
         }
 
@@ -422,9 +563,7 @@ int main(int argc, char *argv[])
             const char *tts_clear_command = "espeak -a 180 -v en-us+m3 'Clear!'";
             fflush(stdout);
             system(tts_clear_command);
-
-            play_sfx_nonblocking(next_level_sound_path);
-
+            play_sfx_nonblocking(sounds->next_level_sound_path);
             printf("스테이지 %s 출튀 성공!\n", stage.name);
             fflush(stdout);
             sleep(1);
@@ -438,11 +577,10 @@ int main(int argc, char *argv[])
     printf("전체 플레이 시간: %.3fs\n", total_time);
 
     double best_time = load_best_record();
-    if (cleared_all && g_running)
+    if (cleared_all && g_running && !failure_detected)
     {
         const char *tts_game_clear_command = "espeak -a 180 -v en-us+m5 -s 140 'Game Clear!'";
         fflush(stdout);
-        // TTS 음성 출력 (Blocking)
         system(tts_game_clear_command);
 
         if (playing_full_campaign)
@@ -468,10 +606,28 @@ int main(int argc, char *argv[])
     printf("최고기록: %.3fs\n", best_time);
     printf("이번 기록 : %.3fs\n", total_time);
 
-    stop_bgm(); // 게임 종료 시 BGM 중지
+    stop_bgm();
 
-    restore_input();
-    shutdown_renderer();
+    if (!g_running)
+    {
+        return GAMEPLAY_OUTCOME_ABORTED;
+    }
+    if (!cleared_all || failure_detected)
+    {
+        return GAMEPLAY_OUTCOME_FAILED;
+    }
+    return GAMEPLAY_OUTCOME_CLEARED;
+}
 
-    return 0;
+static void drain_pending_input(void)
+{
+    int flushed = 0;
+    while (read_input() != -1)
+    {
+        flushed = 1;
+    }
+    if (flushed)
+    {
+        SDL_Delay(10);
+    }
 }

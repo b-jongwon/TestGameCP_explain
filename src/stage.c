@@ -386,7 +386,7 @@ int load_stage(Stage *stage, int stage_id)
                         o->alert = 0;
                         if (stage_id == 6)
                         {
-                            o->hp = 15; // 6 stage 보스 hp
+                            o->hp = 30; // 6 stage 보스 hp
                         }
                         else
                         {
