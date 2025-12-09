@@ -450,7 +450,7 @@ int init_renderer(void)
     g_tex_goal = load_texture("assets/image/backpack64.png");
     g_tex_exit = load_texture("assets/image/exit.PNG");
 
-    g_tex_professor_1 = load_texture("assets/image/한명균교수님.png");
+    g_tex_professor_1 = load_texture("assets/image/김명석교수님.png");
     // g_tex_professor_2 = load_texture("assets/image/김진욱교수님테스트용.png");
     g_tex_professor_2 = load_texture("assets/image/이종택교수님.png");
     g_tex_professor_3 = load_texture("assets/image/한명균교수님.png");
@@ -625,6 +625,50 @@ static SDL_Texture *texture_for_student(char cell)
     }
 }
 
+static void draw_texture(SDL_Texture *texture, int x, int y, const Camera *camera);
+
+static void render_professor_clones(const Stage *stage,
+                                    SDL_Texture *texture,
+                                    const Camera *camera,
+                                    const unsigned char visibility[MAX_Y][MAX_X])
+{
+    if (!stage || !texture || !camera)
+    {
+        return;
+    }
+
+    if (stage->num_professor_clones <= 0)
+    {
+        return;
+    }
+
+    int stage_width = (stage->width > 0) ? stage->width : MAX_X;
+    int stage_height = (stage->height > 0) ? stage->height : MAX_Y;
+
+    for (int i = 0; i < MAX_PROFESSOR_CLONES; ++i)
+    {
+        const ProfessorClone *clone = &stage->professor_clones[i];
+        if (!clone->active)
+        {
+            continue;
+        }
+
+        int tx = clone->tile_x;
+        int ty = clone->tile_y;
+        if (tx < 0 || ty < 0 || tx >= stage_width || ty >= stage_height)
+        {
+            continue;
+        }
+
+        if (!visibility[ty][tx])
+        {
+            continue;
+        }
+
+        draw_texture(texture, tx, ty, camera);
+    }
+}
+
 static void draw_texture(SDL_Texture *texture, int x, int y, const Camera *camera)
 {
     if (!texture)
@@ -745,8 +789,9 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     }
 
     SDL_Texture *current_prof_tex = g_tex_professor_1; // 기본값
+    int stage_identifier = stage->id > 0 ? stage->id : current_stage;
 
-    switch (current_stage)
+    switch (stage_identifier)
     {
     case 1:
         current_prof_tex = g_tex_professor_1;
@@ -810,6 +855,8 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             draw_texture_at_world(tex_to_draw, obstacle_world_x, obstacle_world_y, &camera);
         }
     }
+
+    render_professor_clones(stage, current_prof_tex, &camera, visibility);
 
     for (int i = 0; i < stage->num_items; i++)
     {

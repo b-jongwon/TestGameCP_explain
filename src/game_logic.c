@@ -69,5 +69,25 @@ int check_collision(Stage *stage, Player *player) // 장애물 충돌 조건  re
         return 1; 
     }
 
+    if (stage->num_professor_clones > 0)
+    {
+        const int tile_size = SUBPIXELS_PER_TILE;
+        for (int i = 0; i < MAX_PROFESSOR_CLONES; ++i)
+        {
+            const ProfessorClone *clone = &stage->professor_clones[i];
+            if (!clone->active)
+            {
+                continue;
+            }
+
+            int center_x = clone->tile_x * tile_size + tile_size / 2;
+            int center_y = clone->tile_y * tile_size + tile_size / 2;
+            if (is_world_point_inside_player(player, center_x, center_y))
+            {
+                return 1; // 분신 접촉: 즉시 게임오버 (쉴드 무시)
+            }
+        }
+    }
+
     return 0;
 }

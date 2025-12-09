@@ -1,15 +1,336 @@
 // src/professor_patterns.c
 
 #include "../include/professor_pattern.h"
+#include "../include/sound.h"
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 
 typedef int (*PatternFunc)(Stage *, Obstacle *, Player *, double);
 
+enum
+{
+    B1_STATE_IDLE = 0,
+    B1_STATE_PREPARE,
+    B1_STATE_SKILL_A,
+    B1_STATE_SKILL_B
+};
+
+static const double kB1PrepareDuration = 2.0;
+static const double kB1SkillAToBDelay = 4.0;
+static const double kB1SkillBDuration = 2.0;
+static const double kB1SkillACloneLifetime = 6.0;
+static const double kB1SkillBCloneLifetime = 2.0;
+static const int kB1ClonesPerCast = 16;
+static const char *kB1SkillASfx = "bgm/B1_SkillA.wav";
+static const char *kB1SkillBSfx = "bgm/B1_SkillB.wav";
+
+typedef struct
+{
+    int x;
+    int y;
+} TileCoord;
+
+static void clear_professor_clones(Stage *stage)
+{
+    if (!stage)
+    {
+        return;
+    }
+    memset(stage->professor_clones, 0, sizeof(stage->professor_clones));
+    stage->num_professor_clones = 0;
+}
+
+static void decay_professor_clones(Stage *stage, double delta_time)
+{
+    if (!stage)
+    {
+        return;
+    }
+
+    if (delta_time < 0.0)
+    {
+        delta_time = 0.0;
+    }
+
+    int alive = 0;
+    for (int i = 0; i < MAX_PROFESSOR_CLONES; ++i)
+    {
+        ProfessorClone *clone = &stage->professor_clones[i];
+        if (!clone->active)
+        {
+            continue;
+        }
+
+        if (delta_time > 0.0)
+        {
+            clone->remaining_time -= delta_time;
+            if (clone->remaining_time <= 0.0)
+            {
+                clone->active = 0;
+                continue;
+            }
+        }
+
+        alive++;
+    }
+
+    stage->num_professor_clones = alive;
+}
+
+static int tile_overlaps_player(const Player *player, int tx, int ty)
+{
+    if (!player)
+    {
+        return 0;
+    }
+
+    const int tile_size = SUBPIXELS_PER_TILE;
+    int tile_left = tx * tile_size;
+    int tile_right = tile_left + tile_size;
+    int tile_top = ty * tile_size;
+    int tile_bottom = tile_top + tile_size;
+
+    if (player->world_x + tile_size <= tile_left ||
+        player->world_x >= tile_right ||
+        player->world_y + tile_size <= tile_top ||
+        player->world_y >= tile_bottom)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+static int tile_has_professor_clone(const Stage *stage, int tx, int ty)
+{
+    if (!stage)
+    {
+        return 0;
+    }
+    for (int i = 0; i < MAX_PROFESSOR_CLONES; ++i)
+    {
+        const ProfessorClone *clone = &stage->professor_clones[i];
+        if (clone->active && clone->tile_x == tx && clone->tile_y == ty)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int tile_has_obstacle(const Stage *stage, int tx, int ty)
+{
+    if (!stage)
+    {
+        return 0;
+    }
+    for (int i = 0; i < stage->num_obstacles; ++i)
+    {
+        const Obstacle *o = &stage->obstacles[i];
+        if (!o->active)
+        {
+            continue;
+        }
+        int ox = o->world_x / SUBPIXELS_PER_TILE;
+        int oy = o->world_y / SUBPIXELS_PER_TILE;
+        if (ox == tx && oy == ty)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int tile_has_item(const Stage *stage, int tx, int ty)
+{
+    if (!stage)
+    {
+        return 0;
+    }
+    for (int i = 0; i < stage->num_items; ++i)
+    {
+        const Item *it = &stage->items[i];
+        if (!it->active)
+        {
+            continue;
+        }
+        int ix = it->world_x / SUBPIXELS_PER_TILE;
+        int iy = it->world_y / SUBPIXELS_PER_TILE;
+        if (ix == tx && iy == ty)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+static int add_professor_clone(Stage *stage, int tx, int ty, double ttl)
+{
+    if (!stage)
+    {
+        return 0;
+    }
+    for (int i = 0; i < MAX_PROFESSOR_CLONES; ++i)
+    {
+        ProfessorClone *clone = &stage->professor_clones[i];
+        if (clone->active)
+        {
+            continue;
+        }
+
+        clone->tile_x = tx;
+        clone->tile_y = ty;
+        clone->remaining_time = ttl;
+        clone->active = 1;
+        stage->num_professor_clones++;
+        return 1;
+    }
+    return 0;
+}
+
+static int spawn_professor_clones(Stage *stage, const Player *player, const Obstacle *prof,
+                                  int desired_count, double ttl)
+{
+    if (!stage || desired_count <= 0)
+    {
+        return 0;
+    }
+
+    const int stage_width = (stage->width > 0) ? stage->width : MAX_X;
+    const int stage_height = (stage->height > 0) ? stage->height : MAX_Y;
+
+    TileCoord candidates[MAX_X * MAX_Y];
+    int candidate_count = 0;
+
+    for (int y = 0; y < stage_height; ++y)
+    {
+        for (int x = 0; x < stage_width; ++x)
+        {
+            if (stage->map[y][x] != ' ')
+            {
+                continue; // 공백 공간만 허용
+            }
+            if (tile_overlaps_player(player, x, y))
+            {
+                continue;
+            }
+            if (tile_has_obstacle(stage, x, y))
+            {
+                continue;
+            }
+            if (tile_has_item(stage, x, y))
+            {
+                continue;
+            }
+            if (tile_has_professor_clone(stage, x, y))
+            {
+                continue;
+            }
+            candidates[candidate_count++] = (TileCoord){x, y};
+        }
+    }
+
+    int available = candidate_count;
+    int created = 0;
+    while (created < desired_count && available > 0)
+    {
+        int pick = rand() % available;
+        TileCoord chosen = candidates[pick];
+        if (add_professor_clone(stage, chosen.x, chosen.y, ttl))
+        {
+            created++;
+        }
+
+        candidates[pick] = candidates[available - 1];
+        available--;
+    }
+
+    (void)prof;
+    return created;
+}
+
+static void cast_b1_skill_a(Stage *stage, const Player *player, const Obstacle *prof)
+{
+    spawn_professor_clones(stage, player, prof, kB1ClonesPerCast, kB1SkillACloneLifetime);
+    play_sfx_nonblocking(kB1SkillASfx);
+}
+
+static void cast_b1_skill_b(Stage *stage, const Player *player, const Obstacle *prof)
+{
+    spawn_professor_clones(stage, player, prof, kB1ClonesPerCast, kB1SkillBCloneLifetime);
+    play_sfx_nonblocking(kB1SkillBSfx);
+}
+
 int pattern_stage_b1(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
+    if (!stage || !prof || !player)
+    {
+        return 1;
+    }
+
+    if (delta_time < 0.0)
+    {
+        delta_time = 0.0;
+    }
+
+    decay_professor_clones(stage, delta_time);
+
+    if (!player->has_backpack)
+    {
+        prof->alert = 0;
+        if (prof->p_state != B1_STATE_IDLE)
+        {
+            clear_professor_clones(stage);
+        }
+        prof->p_state = B1_STATE_IDLE;
+        prof->p_timer = 0.0;
+        return 0; // 가방 획득 전에는 움직임 금지
+    }
+
+    prof->alert = 1;
+
+    if (prof->p_state == B1_STATE_IDLE)
+    {
+        prof->p_state = B1_STATE_PREPARE;
+        prof->p_timer = 0.0;
+    }
+
+    switch (prof->p_state)
+    {
+    case B1_STATE_PREPARE:
+        prof->p_timer += delta_time;
+        if (prof->p_timer >= kB1PrepareDuration)
+        {
+            prof->p_timer -= kB1PrepareDuration;
+            cast_b1_skill_a(stage, player, prof);
+            prof->p_state = B1_STATE_SKILL_A;
+        }
+        break;
+    case B1_STATE_SKILL_A:
+        prof->p_timer += delta_time;
+        if (prof->p_timer >= kB1SkillAToBDelay)
+        {
+            prof->p_timer -= kB1SkillAToBDelay;
+            cast_b1_skill_b(stage, player, prof);
+            prof->p_state = B1_STATE_SKILL_B;
+        }
+        break;
+    case B1_STATE_SKILL_B:
+        prof->p_timer += delta_time;
+        if (prof->p_timer >= kB1SkillBDuration)
+        {
+            prof->p_timer -= kB1SkillBDuration;
+            clear_professor_clones(stage);
+            prof->p_state = B1_STATE_PREPARE;
+        }
+        break;
+    default:
+        prof->p_state = B1_STATE_PREPARE;
+        prof->p_timer = 0.0;
+        break;
+    }
 
     return 1;
 }
