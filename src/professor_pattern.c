@@ -8,6 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 typedef int (*PatternFunc)(Stage *, Obstacle *, Player *, double);
 
@@ -32,14 +33,22 @@ static const char *kB1SkillBSfx = "bgm/Professor_b1_2power2.wav";
 enum
 {
     STAGE3_STATE_WAIT = 0,
-    STAGE3_STATE_FIRING = 1
+    STAGE3_STATE_FIRING = 1,
+    STAGE3_STATE_SWAP = 2
 };
 
 static const double kStage3BurstInterval = 2.5;
 static const double kStage3ShotSpacing = 0.3;
-static const int kStage3ShotsPerBurst = 3;
+static const int kStage3ShotsPerBurst = 5;
 static const double kStage3BulletSpeed = 6.0;
 static const double kStage3BulletLifetime = 4.0;
+static const double kStage3SwapWindup = 0.9;
+static const char *kStage3Skill1Sfx = "bgm/Professor_3b_TTTTT.wav";
+static const char *kStage3Skill2Sfx = "bgm/Professor_3b_astest.wav";
+static const char *kStage3ClearSfx = "bgm/Professor_3b_clear.wav";
+static const char *kStage3Skill1Fallback = "bgm/Professor_f3_TTTTT.wav";
+static const char *kStage3Skill2Fallback = "bgm/Professor_f3_astest.wav";
+static const char *kStage3ClearFallback = "bgm/Professor_f3_clear.wav";
 
 static void clear_professor_clones(Stage *stage)
 {
@@ -334,6 +343,40 @@ static void spawn_stage3_bullet(Stage *stage, const Obstacle *prof, const Player
     {
         stage->num_professor_bullets++;
     }
+}
+
+static const char *resolve_professor_sfx(const char *primary, const char *fallback)
+{
+    if (primary && access(primary, R_OK) == 0)
+    {
+        return primary;
+    }
+    if (fallback && access(fallback, R_OK) == 0)
+    {
+        return fallback;
+    }
+    return primary ? primary : fallback;
+}
+
+static void swap_professor_with_player(Obstacle *prof, Player *player)
+{
+    if (!prof || !player)
+    {
+        return;
+    }
+
+    int temp_x = prof->world_x;
+    int temp_y = prof->world_y;
+
+    prof->world_x = player->world_x;
+    prof->world_y = player->world_y;
+    prof->target_world_x = prof->world_x;
+    prof->target_world_y = prof->world_y;
+
+    player->world_x = temp_x;
+    player->world_y = temp_y;
+    player->target_world_x = player->world_x;
+    player->target_world_y = player->world_y;
 }
 
 ProfessorBulletResult update_professor_bullets(Stage *stage, Player *player, double delta_time)
@@ -670,13 +713,32 @@ int pattern_stage_3f(Stage *stage, Obstacle *prof, Player *player, double delta_
     {
         return 1;
     }
+<<<<<<< HEAD
    
     if (!prof->alert)
+=======
+
+    if (!player->has_backpack)
+>>>>>>> 35cded2 (feat: 김명옥교수님 패턴 구현)
     {
+        prof->alert = 0;
         prof->p_state = STAGE3_STATE_WAIT;
         prof->p_timer = 0.0;
         prof->p_counter = 0;
-        return 1;
+        prof->p_misc = 0;
+        return 0;
+    }
+
+    if (!prof->alert)
+    {
+        prof->alert = 1;
+    }
+
+    if (!prof->p_misc)
+    {
+        const char *clear_sfx = resolve_professor_sfx(kStage3ClearSfx, kStage3ClearFallback);
+        play_sfx_nonblocking(clear_sfx);
+        prof->p_misc = 1;
     }
 
     if (delta_time < 0.0)
@@ -684,40 +746,62 @@ int pattern_stage_3f(Stage *stage, Obstacle *prof, Player *player, double delta_
         delta_time = 0.0;
     }
 
-    if (prof->p_state != STAGE3_STATE_WAIT && prof->p_state != STAGE3_STATE_FIRING)
+    if (prof->p_state != STAGE3_STATE_WAIT &&
+        prof->p_state != STAGE3_STATE_FIRING &&
+        prof->p_state != STAGE3_STATE_SWAP)
     {
         prof->p_state = STAGE3_STATE_WAIT;
         prof->p_timer = 0.0;
         prof->p_counter = 0;
     }
 
-    if (prof->p_state == STAGE3_STATE_WAIT)
+    switch (prof->p_state)
     {
+    case STAGE3_STATE_WAIT:
         prof->p_timer += delta_time;
         if (prof->p_timer >= kStage3BurstInterval)
         {
             prof->p_timer = 0.0;
             prof->p_counter = 0;
             prof->p_state = STAGE3_STATE_FIRING;
+            const char *skill1_sfx = resolve_professor_sfx(kStage3Skill1Sfx, kStage3Skill1Fallback);
+            play_sfx_nonblocking(skill1_sfx);
         }
         return 1;
-    }
 
-    prof->p_timer -= delta_time;
-    while (prof->p_timer <= 0.0 && prof->p_counter < kStage3ShotsPerBurst)
-    {
-        spawn_stage3_bullet(stage, prof, player);
-        prof->p_counter++;
-        prof->p_timer += kStage3ShotSpacing;
-    }
+    case STAGE3_STATE_FIRING:
+        prof->p_timer -= delta_time;
+        while (prof->p_timer <= 0.0 && prof->p_counter < kStage3ShotsPerBurst)
+        {
+            spawn_stage3_bullet(stage, prof, player);
+            prof->p_counter++;
+            prof->p_timer += kStage3ShotSpacing;
+        }
+        if (prof->p_counter >= kStage3ShotsPerBurst)
+        {
+            prof->p_state = STAGE3_STATE_SWAP;
+            prof->p_timer = 0.0;
+        }
+        return 0;
 
-    if (prof->p_counter >= kStage3ShotsPerBurst)
-    {
+    case STAGE3_STATE_SWAP:
+        prof->p_timer += delta_time;
+        if (prof->p_timer >= kStage3SwapWindup)
+        {
+            const char *skill2_sfx = resolve_professor_sfx(kStage3Skill2Sfx, kStage3Skill2Fallback);
+            play_sfx_nonblocking(skill2_sfx);
+            swap_professor_with_player(prof, player);
+            prof->p_state = STAGE3_STATE_WAIT;
+            prof->p_timer = 0.0;
+        }
+        return 0;
+
+    default:
         prof->p_state = STAGE3_STATE_WAIT;
         prof->p_timer = 0.0;
+        prof->p_counter = 0;
+        return 1;
     }
-
-    return 0;
 }
 
 /*
