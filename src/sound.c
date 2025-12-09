@@ -557,9 +557,9 @@ static void preload_known_sounds(void)
         "bgm/B1_SkillA.wav",
         "bgm/B1_SkillB.wav",
         "bgm/Professor_lv2.wav",
+        "bgm/Professor_lv3.wav",
         "bgm/Professor_lv5.wav",
-        "bgm/Professor_lv6.wav"
-    };
+        "bgm/Professor_lv6.wav"};
 
     const size_t count = sizeof(kPreloadList) / sizeof(kPreloadList[0]);
     for (size_t i = 0; i < count; ++i)
