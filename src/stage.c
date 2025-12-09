@@ -5,7 +5,8 @@
 
 #include <stdio.h>  // fopen, fgets, FILE, perror
 #include <string.h> // memset, strlen, snprintf, strncpy
-
+#include <fcntl.h>  // open, O_RDONLY
+#include <unistd.h> // read, close
 
 #include "../include/game.h"
 #include "../include/stage.h"
@@ -71,6 +72,33 @@ static const StageDifficulty kDifficultySettings[] = {
     // Stage 6
     {0.12, 0.20, 0.3, 6, 7, 30, 0.1, 3}};
 
+    static int sys_read_line(int fd, char *buf, int size)
+{
+    int i = 0;
+    char c;
+    
+    if (size <= 0) return 0;
+
+    while (i < size - 1) // NULL 문자를 위해 1바이트 남김
+    {
+        // 1바이트씩 읽음
+        ssize_t result = read(fd, &c, 1);
+        
+        if (result <= 0) // EOF(0) 또는 에러(-1)
+        {
+            if (i == 0) return 0; // 아무것도 못 읽고 끝남
+            break; // 읽은 데까지만 처리
+        }
+
+        buf[i++] = c;
+        if (c == '\n') // 개행을 만나면 중단
+        {
+            break;
+        }
+    }
+    buf[i] = '\0'; // 문자열 끝 처리
+    return i; // 읽은 길이 반환 (0보다 크면 참으로 인식되어 루프 지속)
+}
 static void copy_map(Stage *stage)
 {
     if (!stage)
@@ -116,15 +144,15 @@ static void load_render_overlay(Stage *stage, const char *stage_filename)  // �
         snprintf(render_filename, sizeof(render_filename), "assets/%s_render.map", stage_filename);
     }
 
-    FILE *render_fp = fopen(render_filename, "r");
-    if (!render_fp)
+   int render_fd = open(render_filename, O_RDONLY);
+    if (render_fd < 0) // open 실패 시 -1 반환
     {
         return;
     }
 
     char line[1024];
     int y = 0;
-    while (y < MAX_Y && fgets(line, sizeof(line), render_fp))
+   while (y < MAX_Y && sys_read_line(render_fd, line, sizeof(line)) > 0)
     {
         int len = (int)strlen(line);
         while (len > 0 && (line[len - 1] == '\n' || line[len - 1] == '\r'))
@@ -139,7 +167,7 @@ static void load_render_overlay(Stage *stage, const char *stage_filename)  // �
         y++;
     }
 
-    fclose(render_fp);
+    close(render_fd);
 }
 
 static void cache_passable_tiles(Stage *stage)
@@ -268,10 +296,10 @@ int load_stage(Stage *stage, int stage_id)
     
     // 3) 파일 열기 (읽기 모드)
   
-    FILE *fp = fopen(filename, "r");
-    if (!fp)
+    int fp = open(filename, O_RDONLY);
+    if (fp < 0)
     {
-        perror("fopen"); // 왜 실패했는지 시스템 메시지 출력
+        perror("open"); // 왜 실패했는지 시스템 메시지 출력 (perror는 유지해도 됨)
         return -1;
     }
 
@@ -282,7 +310,7 @@ int load_stage(Stage *stage, int stage_id)
     
     // 4) 파일을 한 줄씩 읽으면서 맵을 채움
 
-    while (y < MAX_Y && fgets(line, sizeof(line), fp))
+    while (y < MAX_Y && sys_read_line(fp, line, sizeof(line)) > 0)
     { // MAX_y는 game.h에 정의됨.
 
         int len = (int)strlen(line);
@@ -457,7 +485,7 @@ int load_stage(Stage *stage, int stage_id)
         stage->map[y][MAX_X] = '\0';
     }
 
-    fclose(fp);
+    close(fp);
 
     load_render_overlay(stage, info->filename);
     cache_passable_tiles(stage);

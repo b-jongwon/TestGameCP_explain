@@ -19,7 +19,7 @@ int is_goal_reached(const Stage *stage, const Player *player) {
         }
     }
 
-    return is_tile_center_inside_player(player, stage->start_x, stage->start_y);
+    return is_tile_center_inside_player(player, stage->exit_x, stage->exit_y);
 }
 
 
