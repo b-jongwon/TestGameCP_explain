@@ -585,7 +585,7 @@ int init_renderer(void)
 
     g_tex_pulpit = load_texture("assets/image/pulpit64.png");
 
-    g_tex_trap = load_texture("assets/image/trap.png");         // 트랩 (일반타일로 의문사 또는 실제 보이게 해서 못 지나가도록)
+    g_tex_trap = load_texture("assets/image/floor64.png");         // 트랩 (일반타일로 의문사 또는 실제 보이게 해서 못 지나가도록)
     g_tex_wall_break = load_texture("assets/image/wall64.png"); // 깨지는 벽
 
     g_tex_projectile = load_texture("assets/image/ball.png");      // 투사체 임시 렌더링

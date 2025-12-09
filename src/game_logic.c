@@ -3,16 +3,23 @@
 #include "../include/player.h"
 
 
-int is_goal_reached(const Stage *stage, const Player *player) // 목표 도달 판정 함수
-{
-    if (!stage || !player) return 0; // return 0 이면 도달 전
+int is_goal_reached(const Stage *stage, const Player *player) {
+    if (!stage || !player) return 0;
+    
+     
+    if (!player->has_backpack) return 0;  //가방검사
 
-   
-    if (!player->has_backpack)  // 가방 없으면 클리어 불가능
-        return 0;
+    // 6 스테이면 교수님 없어야 탈출가능
+    if (stage->id == 6) {
+        for (int i = 0; i < stage->num_obstacles; i++) {
+            const Obstacle *o = &stage->obstacles[i];
+            if (o->active && o->kind == OBSTACLE_KIND_PROFESSOR) {
+                return 0; 
+            }
+        }
+    }
 
-   
-    return is_tile_center_inside_player(player, stage->exit_x, stage->exit_y); // 플레이어 위치와 출구 타일 위치확인
+    return is_tile_center_inside_player(player, stage->start_x, stage->start_y);
 }
 
 
