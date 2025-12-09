@@ -884,11 +884,11 @@ int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double delta_
         return 1;
 
     // 1. 분신 개수
-    const int NERFED_CLONE_COUNT = 8;
+    const int NERFED_CLONE_COUNT = 6;
 
     // 2. 플레이어 이속 감소 비율
 
-    const double NERFED_SLOW_FACTOR = 0.40; // 60퍼센트 느려짐
+    const double NERFED_SLOW_FACTOR = 0.50; // 50퍼센트 느려짐
 
     // 3. 시야 차단 강도 (Stage 2 능력)
     // 1: 항상 어둠, 0: 특정 패턴(분신) 때만 어둠
@@ -971,8 +971,8 @@ int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double delta_
             should_move = 0;
         }
     }
-    // Phase 3: 순간 이동 (중요!)
-    else
+    // Phase 3: 순간 이동 
+   /* else   
     {
         player->is_confused = ALWAYS_DARK;
 
@@ -987,7 +987,9 @@ int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double delta_
 
             should_move = 0; // 👈 [수정] 순간이동 한 프레임은 이동 로직 건너뜀
         }
-    }
+    } 
+        // 난이도 조절을 위해 주석처리    
+    */
 
     decay_professor_clones(stage, delta_time);
 

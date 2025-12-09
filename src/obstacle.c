@@ -1,4 +1,3 @@
-#define _POSIX_C_SOURCE 199309L
 #include <pthread.h> // pthread_t, pthread_create, pthread_join, pthread_mutex_t 등
 #include <unistd.h>  // usleep
 #include <math.h>

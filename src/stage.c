@@ -67,10 +67,10 @@ static const StageDifficulty kDifficultySettings[] = {
     {0.20, 0.25, 0.35, 5, 15, 7, 0.15, 3},
 
     // Stage 5:
-    {0.12, 0.20, 0.3, 3, 5, 5, 0.15, 3},
+    {0.12, 0.20, 0.3, 3, 6, 5, 0.1, 3},
 
     // Stage 6
-    {0.12, 0.20, 0.3, 6, 7, 30, 0.1, 3}};
+    {0.12, 0.20, 0.3, 3, 7, 30, 0.1, 3}};
 
     static int sys_read_line(int fd, char *buf, int size)
 {
@@ -386,7 +386,7 @@ int load_stage(Stage *stage, int stage_id)
                         o->alert = 0;
                         if (stage_id == 6)
                         {
-                            o->hp = 24; // 6 stage 보스 hp
+                            o->hp = 18; // 6 stage 보스 hp
                         }
                         else
                         {
