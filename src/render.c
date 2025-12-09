@@ -18,6 +18,7 @@
 #include "../include/render.h"
 
 #define TILE_SIZE 32
+#define ARRAY_LEN(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
 
 // 고정 해상도 + 고정 배율을 유지해 맵 크기와 무관하게 일정한 뷰포트를 제공한다.
 #define WINDOW_WIDTH 1280
@@ -124,6 +125,8 @@ static SDL_Texture *g_tex_trap = NULL;       // 트랩
 static SDL_Texture *g_tex_wall_break = NULL; // 깨지는 벽
 
 static SDL_Texture *g_tex_exit = NULL;
+static SDL_Texture *g_tex_menu_background = NULL;
+static SDL_Texture *g_tex_game_over_image = NULL;
 
 static SDL_Texture *g_player_textures[PLAYER_VARIANT_COUNT][PLAYER_FACING_COUNT][PLAYER_FRAME_COUNT] = {{{NULL}}};
 static int g_window_w = 0;
@@ -196,7 +199,44 @@ static SDL_Texture *g_professor_label_textures[PROFESSOR_TEXTURE_COUNT] = {NULL}
 static int g_professor_label_width[PROFESSOR_TEXTURE_COUNT] = {0};
 static int g_professor_label_height[PROFESSOR_TEXTURE_COUNT] = {0};
 static TTF_Font *g_professor_label_font = NULL;
+static char g_professor_label_font_path[512] = {0};
+static TTF_Font *g_ui_font_large = NULL;
+static TTF_Font *g_ui_font_small = NULL;
 static int g_ttf_initialized = 0;
+
+typedef struct
+{
+    SDL_Texture *texture;
+    int width;
+    int height;
+} StaticTexture;
+
+typedef struct
+{
+    SDL_Texture *normal;
+    SDL_Texture *highlight;
+    int width;
+    int height;
+    const char *label;
+} MenuOptionTexture;
+
+typedef struct
+{
+    SDL_Texture *texture;
+    int width;
+    int height;
+    SDL_Color color;
+    char last_text[128];
+    int valid;
+} CachedText;
+
+static MenuOptionTexture g_title_menu_options[3];
+static StaticTexture g_title_hint_texture = {NULL, 0, 0};
+static CachedText g_title_logo_cache = {NULL, 0, 0, {0, 0, 0, 0}, "", 0};
+static CachedText g_records_best_cache = {NULL, 0, 0, {0, 0, 0, 0}, "", 0};
+static StaticTexture g_records_hint_texture = {NULL, 0, 0};
+static CachedText g_game_over_title_cache = {NULL, 0, 0, {0, 0, 0, 0}, "", 0};
+static StaticTexture g_game_over_hint_texture = {NULL, 0, 0};
 
 static const HudFontGlyph *find_hud_glyph(char c)
 {
@@ -254,6 +294,247 @@ static int is_file_readable(const char *path)
     return (path && access(path, R_OK) == 0);
 }
 
+static void remember_professor_font_path(const char *path)
+{
+    if (!path)
+    {
+        g_professor_label_font_path[0] = '\0';
+        return;
+    }
+    strncpy(g_professor_label_font_path, path, sizeof(g_professor_label_font_path) - 1);
+    g_professor_label_font_path[sizeof(g_professor_label_font_path) - 1] = '\0';
+}
+
+static SDL_Texture *create_text_texture(TTF_Font *font, const char *text, SDL_Color color, int *out_w, int *out_h)
+{
+    if (!font || !text)
+    {
+        return NULL;
+    }
+
+    SDL_Surface *surface = TTF_RenderUTF8_Blended(font, text, color);
+    if (!surface)
+    {
+        fprintf(stderr, "TTF_RenderUTF8_Blended failed for '%s': %s\n", text, TTF_GetError());
+        return NULL;
+    }
+
+    SDL_Texture *texture = SDL_CreateTextureFromSurface(g_renderer, surface);
+    if (!texture)
+    {
+        fprintf(stderr, "SDL_CreateTextureFromSurface failed for '%s': %s\n", text, SDL_GetError());
+        SDL_FreeSurface(surface);
+        return NULL;
+    }
+
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_BLEND);
+    if (out_w)
+    {
+        *out_w = surface->w;
+    }
+    if (out_h)
+    {
+        *out_h = surface->h;
+    }
+    SDL_FreeSurface(surface);
+    return texture;
+}
+
+static void destroy_static_texture(StaticTexture *target)
+{
+    if (!target)
+    {
+        return;
+    }
+    if (target->texture)
+    {
+        SDL_DestroyTexture(target->texture);
+    }
+    target->texture = NULL;
+    target->width = 0;
+    target->height = 0;
+}
+
+static void destroy_menu_option(MenuOptionTexture *option)
+{
+    if (!option)
+    {
+        return;
+    }
+    if (option->normal)
+    {
+        SDL_DestroyTexture(option->normal);
+    }
+    if (option->highlight)
+    {
+        SDL_DestroyTexture(option->highlight);
+    }
+    option->normal = NULL;
+    option->highlight = NULL;
+    option->width = 0;
+    option->height = 0;
+}
+
+static void destroy_cached_text(CachedText *cache)
+{
+    if (!cache)
+    {
+        return;
+    }
+    if (cache->texture)
+    {
+        SDL_DestroyTexture(cache->texture);
+    }
+    cache->texture = NULL;
+    cache->width = 0;
+    cache->height = 0;
+    cache->color = (SDL_Color){0, 0, 0, 0};
+    cache->last_text[0] = '\0';
+    cache->valid = 0;
+}
+
+static int cached_text_matches(const CachedText *cache, const char *text, SDL_Color color)
+{
+    if (!cache || !cache->valid)
+    {
+        return 0;
+    }
+    if (!text)
+    {
+        return 0;
+    }
+    if (cache->color.r != color.r || cache->color.g != color.g ||
+        cache->color.b != color.b || cache->color.a != color.a)
+    {
+        return 0;
+    }
+    return strncmp(cache->last_text, text, sizeof(cache->last_text)) == 0;
+}
+
+static void update_cached_text(CachedText *cache, TTF_Font *font, const char *text, SDL_Color color)
+{
+    if (!cache || !font || !text)
+    {
+        return;
+    }
+
+    if (cached_text_matches(cache, text, color))
+    {
+        return;
+    }
+
+    SDL_Texture *texture = create_text_texture(font, text, color, &cache->width, &cache->height);
+    if (!texture)
+    {
+        return;
+    }
+
+    if (cache->texture)
+    {
+        SDL_DestroyTexture(cache->texture);
+    }
+    cache->texture = texture;
+    cache->color = color;
+    strncpy(cache->last_text, text, sizeof(cache->last_text) - 1);
+    cache->last_text[sizeof(cache->last_text) - 1] = '\0';
+    cache->valid = 1;
+}
+
+static int build_title_menu_textures(void)
+{
+    if (!g_ui_font_large)
+    {
+        return -1;
+    }
+
+    const char *labels[] = {"시작하기", "기록보기", "종료하기"};
+    SDL_Color normal_color = {200, 200, 200, 255};
+    SDL_Color highlight_color = {255, 255, 255, 255};
+
+    for (int i = 0; i < ARRAY_LEN(g_title_menu_options); ++i)
+    {
+        destroy_menu_option(&g_title_menu_options[i]);
+        g_title_menu_options[i].label = labels[i];
+
+        int normal_w = 0;
+        int normal_h = 0;
+        int highlight_w = 0;
+        int highlight_h = 0;
+
+        g_title_menu_options[i].normal = create_text_texture(g_ui_font_large,
+                                                             labels[i],
+                                                             normal_color,
+                                                             &normal_w,
+                                                             &normal_h);
+        g_title_menu_options[i].highlight = create_text_texture(g_ui_font_large,
+                                                                labels[i],
+                                                                highlight_color,
+                                                                &highlight_w,
+                                                                &highlight_h);
+        if (!g_title_menu_options[i].normal || !g_title_menu_options[i].highlight)
+        {
+            return -1;
+        }
+
+        g_title_menu_options[i].width = (normal_w > highlight_w) ? normal_w : highlight_w;
+        g_title_menu_options[i].height = (normal_h > highlight_h) ? normal_h : highlight_h;
+    }
+    return 0;
+}
+
+static int build_static_textures(void)
+{
+    if (!g_ui_font_small)
+    {
+        return -1;
+    }
+
+    destroy_static_texture(&g_title_hint_texture);
+    destroy_static_texture(&g_records_hint_texture);
+    destroy_static_texture(&g_game_over_hint_texture);
+
+    SDL_Color hint_color = {180, 180, 180, 255};
+    g_title_hint_texture.texture = create_text_texture(g_ui_font_small,
+                                                       "W/S 또는 ↑/↓ 로 이동, Enter로 선택",
+                                                       hint_color,
+                                                       &g_title_hint_texture.width,
+                                                       &g_title_hint_texture.height);
+    g_records_hint_texture.texture = create_text_texture(g_ui_font_small,
+                                                         "아무 키나 누르면 돌아갑니다",
+                                                         hint_color,
+                                                         &g_records_hint_texture.width,
+                                                         &g_records_hint_texture.height);
+    g_game_over_hint_texture.texture = create_text_texture(g_ui_font_small,
+                                                           "아무 키나 누르면 시작화면으로",
+                                                           hint_color,
+                                                           &g_game_over_hint_texture.width,
+                                                           &g_game_over_hint_texture.height);
+
+    if (!g_title_hint_texture.texture || !g_records_hint_texture.texture || !g_game_over_hint_texture.texture)
+    {
+        return -1;
+    }
+    return 0;
+}
+
+static void destroy_title_screen_artifacts(void)
+{
+    for (int i = 0; i < ARRAY_LEN(g_title_menu_options); ++i)
+    {
+        destroy_menu_option(&g_title_menu_options[i]);
+    }
+    destroy_static_texture(&g_title_hint_texture);
+    destroy_cached_text(&g_title_logo_cache);
+}
+
+static void destroy_overlay_textures(void)
+{
+    destroy_static_texture(&g_records_hint_texture);
+    destroy_static_texture(&g_game_over_hint_texture);
+    destroy_cached_text(&g_records_best_cache);
+    destroy_cached_text(&g_game_over_title_cache);
+}
+
 static TTF_Font *open_professor_label_font(void)
 {
     const char *override_path = getenv("PROFESSOR_LABEL_FONT");
@@ -263,6 +544,7 @@ static TTF_Font *open_professor_label_font(void)
         if (font)
         {
             printf("Professor label font: %s\n", override_path);
+            remember_professor_font_path(override_path);
             return font;
         }
         fprintf(stderr, "TTF_OpenFont failed for %s: %s\n", override_path, TTF_GetError());
@@ -280,6 +562,7 @@ static TTF_Font *open_professor_label_font(void)
         if (font)
         {
             printf("Professor label font: %s\n", candidate);
+            remember_professor_font_path(candidate);
             return font;
         }
         fprintf(stderr, "TTF_OpenFont failed for %s: %s\n", candidate, TTF_GetError());
@@ -287,6 +570,33 @@ static TTF_Font *open_professor_label_font(void)
 
     fprintf(stderr, "Unable to find readable font for professor labels. Set PROFESSOR_LABEL_FONT to a Hangul-capable TTF.\n");
     return NULL;
+}
+
+static TTF_Font *open_additional_ui_font(int point_size)
+{
+    if (g_professor_label_font_path[0] == '\0')
+    {
+        fprintf(stderr, "Professor font path unresolved; cannot open UI font size %d\n", point_size);
+        return NULL;
+    }
+
+    TTF_Font *font = TTF_OpenFont(g_professor_label_font_path, point_size);
+    if (!font)
+    {
+        fprintf(stderr, "TTF_OpenFont failed for UI font (%s, %dpt): %s\n",
+                g_professor_label_font_path, point_size, TTF_GetError());
+    }
+    return font;
+}
+
+static TTF_Font *get_large_ui_font(void)
+{
+    return g_ui_font_large ? g_ui_font_large : g_professor_label_font;
+}
+
+static TTF_Font *get_small_ui_font(void)
+{
+    return g_ui_font_small ? g_ui_font_small : g_professor_label_font;
 }
 
 static void destroy_professor_label_texture(int index)
@@ -821,6 +1131,20 @@ int init_renderer(void)
         return -1;
     }
 
+    g_ui_font_large = open_additional_ui_font(40);
+    g_ui_font_small = open_additional_ui_font(22);
+    if (!g_ui_font_large || !g_ui_font_small)
+    {
+        shutdown_renderer();
+        return -1;
+    }
+
+    if (build_title_menu_textures() != 0 || build_static_textures() != 0)
+    {
+        shutdown_renderer();
+        return -1;
+    }
+
     update_tile_render_metrics();
 
     g_tex_floor = load_texture("assets/image/floor64.png");
@@ -861,13 +1185,34 @@ int init_renderer(void)
     g_tex_projectile = load_texture("assets/image/ball.png");       // 플레이어 투사체
     g_tex_professor_bullet = load_texture("assets/image/bullet.png"); // 교수 스킬 탄환
     g_tex_shield_on = load_texture("assets/image/shieldon64.png");  // 보호막 활성화 표현
+    g_tex_menu_background = load_texture("assets/image/menu.png");
+
+    const char *game_over_candidates[] = {
+        "assets/image/gameover.png",
+        "assets/image/gameover.PNG",
+        "assets/image/over.png",
+        "assets/image/over.PNG"};
+    const char *game_over_path = NULL;
+    for (size_t i = 0; i < sizeof(game_over_candidates) / sizeof(game_over_candidates[0]); ++i)
+    {
+        if (is_file_readable(game_over_candidates[i]))
+        {
+            game_over_path = game_over_candidates[i];
+            break;
+        }
+    }
+    if (game_over_path)
+    {
+        g_tex_game_over_image = load_texture(game_over_path);
+    }
 
     if (!g_tex_projectile || !g_tex_professor_bullet || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
         return -1;
 
     if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor_1 || !g_tex_exit ||
         !g_tex_student_w_left || !g_tex_student_w_right || !g_tex_student_m_left ||
-        !g_tex_student_m_right || !g_tex_pulpit)
+        !g_tex_student_m_right || !g_tex_pulpit || !g_tex_menu_background ||
+        !g_tex_game_over_image)
     {
         return -1;
     }
@@ -898,17 +1243,31 @@ int init_renderer(void)
 
 void shutdown_renderer(void)
 {
+    destroy_title_screen_artifacts();
+    destroy_overlay_textures();
     destroy_all_professor_label_textures();
     if (g_professor_label_font)
     {
         TTF_CloseFont(g_professor_label_font);
         g_professor_label_font = NULL;
     }
+    if (g_ui_font_large)
+    {
+        TTF_CloseFont(g_ui_font_large);
+        g_ui_font_large = NULL;
+    }
+    if (g_ui_font_small)
+    {
+        TTF_CloseFont(g_ui_font_small);
+        g_ui_font_small = NULL;
+    }
 
     destroy_texture(&g_tex_floor);
     destroy_texture(&g_tex_wall);
     destroy_texture(&g_tex_goal);
     destroy_texture(&g_tex_exit);
+    destroy_texture(&g_tex_menu_background);
+    destroy_texture(&g_tex_game_over_image);
 
     destroy_texture(&g_tex_professor_1); // 교수
     destroy_texture(&g_tex_professor_2);
@@ -1526,4 +1885,220 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
     (void)current_stage;
     (void)total_stages;
     (void)elapsed_time;
+}
+
+void render_title_screen(int selected_index)
+{
+    if (!g_renderer)
+    {
+        return;
+    }
+
+    if (selected_index < 0 || selected_index >= ARRAY_LEN(g_title_menu_options))
+    {
+        selected_index = 0;
+    }
+
+    SDL_SetRenderDrawColor(g_renderer, 6, 6, 12, 255);
+    SDL_RenderClear(g_renderer);
+
+    if (g_tex_menu_background)
+    {
+        SDL_Rect image_dst = {0, 0, WINDOW_WIDTH - 420, WINDOW_HEIGHT};
+        SDL_RenderCopy(g_renderer, g_tex_menu_background, NULL, &image_dst);
+    }
+
+    SDL_Color title_color = {255, 255, 255, 255};
+    update_cached_text(&g_title_logo_cache, get_large_ui_font(), "교수님 피하기", title_color);
+    if (g_title_logo_cache.texture)
+    {
+        const int scaled_w = g_title_logo_cache.width * 2;
+        const int scaled_h = g_title_logo_cache.height * 2;
+        SDL_Rect logo_dst = {WINDOW_WIDTH / 2 - scaled_w / 2,
+                             30,
+                             scaled_w,
+                             scaled_h};
+        SDL_RenderCopy(g_renderer, g_title_logo_cache.texture, NULL, &logo_dst);
+    }
+
+    SDL_Rect panel = {WINDOW_WIDTH - 380, 60, 320, WINDOW_HEIGHT - 120};
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_renderer, 18, 18, 30, 240);
+    SDL_RenderFillRect(g_renderer, &panel);
+
+    const int base_y = panel.y + 120;
+    const int option_spacing = 110;
+    for (int i = 0; i < ARRAY_LEN(g_title_menu_options); ++i)
+    {
+        const MenuOptionTexture *option = &g_title_menu_options[i];
+        SDL_Texture *tex = (i == selected_index) ? option->highlight : option->normal;
+        if (!tex)
+        {
+            continue;
+        }
+
+        const int dst_x = panel.x + (panel.w - option->width) / 2;
+        const int dst_y = base_y + i * option_spacing;
+        if (i == selected_index)
+        {
+            SDL_Rect highlight = {panel.x + 20, dst_y - 18, panel.w - 40, option->height + 36};
+            SDL_SetRenderDrawColor(g_renderer, 90, 120, 210, 110);
+            SDL_RenderFillRect(g_renderer, &highlight);
+        }
+
+        SDL_Rect dst = {dst_x, dst_y, option->width, option->height};
+        SDL_RenderCopy(g_renderer, tex, NULL, &dst);
+    }
+
+    if (g_title_hint_texture.texture)
+    {
+        SDL_Rect hint = {panel.x + (panel.w - g_title_hint_texture.width) / 2,
+                         panel.y + panel.h - g_title_hint_texture.height - 24,
+                         g_title_hint_texture.width,
+                         g_title_hint_texture.height};
+        SDL_RenderCopy(g_renderer, g_title_hint_texture.texture, NULL, &hint);
+    }
+
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_NONE);
+    SDL_RenderPresent(g_renderer);
+}
+
+void render_records_screen(double best_time)
+{
+    if (!g_renderer)
+    {
+        return;
+    }
+
+    SDL_SetRenderDrawColor(g_renderer, 5, 5, 9, 255);
+    SDL_RenderClear(g_renderer);
+
+    if (g_tex_menu_background)
+    {
+        SDL_Rect image_dst = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
+        SDL_RenderCopy(g_renderer, g_tex_menu_background, NULL, &image_dst);
+    }
+
+    SDL_Rect overlay = {40, 40, WINDOW_WIDTH - 80, WINDOW_HEIGHT - 80};
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_renderer, 8, 8, 12, 220);
+    SDL_RenderFillRect(g_renderer, &overlay);
+
+    char record_text[64];
+    if (best_time > 0.0)
+    {
+        snprintf(record_text, sizeof(record_text), "최고 기록: %.3fs", best_time);
+    }
+    else
+    {
+        snprintf(record_text, sizeof(record_text), "기록 없음");
+    }
+
+    SDL_Color text_color = {240, 240, 240, 255};
+    update_cached_text(&g_records_best_cache, get_large_ui_font(), record_text, text_color);
+    if (g_records_best_cache.texture)
+    {
+        SDL_Rect dst = {
+            WINDOW_WIDTH / 2 - g_records_best_cache.width / 2,
+            WINDOW_HEIGHT / 2 - g_records_best_cache.height / 2,
+            g_records_best_cache.width,
+            g_records_best_cache.height};
+        SDL_RenderCopy(g_renderer, g_records_best_cache.texture, NULL, &dst);
+    }
+
+    if (g_records_hint_texture.texture)
+    {
+        SDL_Rect dst = {WINDOW_WIDTH / 2 - g_records_hint_texture.width / 2,
+                         overlay.y + overlay.h - g_records_hint_texture.height - 30,
+                         g_records_hint_texture.width,
+                         g_records_hint_texture.height};
+        SDL_RenderCopy(g_renderer, g_records_hint_texture.texture, NULL, &dst);
+    }
+
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_NONE);
+    SDL_RenderPresent(g_renderer);
+}
+
+void render_game_over_screen(void)
+{
+    if (!g_renderer)
+    {
+        return;
+    }
+
+    SDL_SetRenderDrawColor(g_renderer, 4, 2, 2, 255);
+    SDL_RenderClear(g_renderer);
+
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(g_renderer, 80, 10, 10, 190);
+    SDL_Rect overlay = {0, 0, WINDOW_WIDTH, WINDOW_HEIGHT};
+    SDL_RenderFillRect(g_renderer, &overlay);
+
+    SDL_Color title_color = {255, 120, 120, 255};
+    update_cached_text(&g_game_over_title_cache, get_large_ui_font(), "재수강", title_color);
+    if (g_game_over_title_cache.texture)
+    {
+        const int scaled_w = g_game_over_title_cache.width * 2;
+        const int scaled_h = g_game_over_title_cache.height * 2;
+        SDL_Rect dst = {WINDOW_WIDTH / 2 - scaled_w / 2,
+                         60,
+                         scaled_w,
+                         scaled_h};
+        SDL_RenderCopy(g_renderer, g_game_over_title_cache.texture, NULL, &dst);
+    }
+
+    const int image_top = 170;
+    const int image_bottom_margin = 150;
+    if (g_tex_game_over_image)
+    {
+        int tex_w = 0;
+        int tex_h = 0;
+        if (SDL_QueryTexture(g_tex_game_over_image, NULL, NULL, &tex_w, &tex_h) != 0)
+        {
+            tex_w = WINDOW_WIDTH / 2;
+            tex_h = WINDOW_HEIGHT / 2;
+        }
+
+        int max_w = WINDOW_WIDTH - 200;
+        int max_h = WINDOW_HEIGHT - image_top - image_bottom_margin;
+        if (max_w < 100)
+            max_w = 100;
+        if (max_h < 100)
+            max_h = 100;
+
+        double scale = 1.0;
+        if (tex_w > 0 && tex_h > 0)
+        {
+            double scale_w = (double)max_w / (double)tex_w;
+            double scale_h = (double)max_h / (double)tex_h;
+            scale = fmin(1.0, fmin(scale_w, scale_h));
+        }
+
+        int draw_w = (int)(tex_w * scale);
+        int draw_h = (int)(tex_h * scale);
+        if (draw_w <= 0 || draw_h <= 0)
+        {
+            draw_w = max_w;
+            draw_h = max_h;
+        }
+
+        SDL_Rect img_dst = {
+            WINDOW_WIDTH / 2 - draw_w / 2,
+            image_top + (max_h - draw_h) / 2,
+            draw_w,
+            draw_h};
+        SDL_RenderCopy(g_renderer, g_tex_game_over_image, NULL, &img_dst);
+    }
+
+    if (g_game_over_hint_texture.texture)
+    {
+        SDL_Rect dst = {WINDOW_WIDTH / 2 - g_game_over_hint_texture.width / 2,
+                         WINDOW_HEIGHT - g_game_over_hint_texture.height - 40,
+                         g_game_over_hint_texture.width,
+                         g_game_over_hint_texture.height};
+        SDL_RenderCopy(g_renderer, g_game_over_hint_texture.texture, NULL, &dst);
+    }
+
+    SDL_SetRenderDrawBlendMode(g_renderer, SDL_BLENDMODE_NONE);
+    SDL_RenderPresent(g_renderer);
 }
