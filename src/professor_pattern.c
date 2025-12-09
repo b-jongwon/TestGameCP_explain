@@ -657,7 +657,19 @@ int pattern_stage_3f(Stage *stage, Obstacle *prof, Player *player, double delta_
     {
         return 1;
     }
+    const char *PROF_LV4_SFX_PATH = "bgm/Professor_lv4.wav";
+    if (prof->alert && prof->p_timer == 0.0)
+    {
+        play_sfx_nonblocking(PROF_LV4_SFX_PATH);
 
+        // p_timer를 0.1로 설정하여 다음 프레임에 중복 실행을 방지합니다.
+        prof->p_timer = 0.1;
+    }
+    else if (!prof->alert)
+    {
+        // 미발견 상태로 돌아가면 타이머를 0으로 리셋합니다.
+        prof->p_timer = 0.0;
+    }
     if (!prof->alert)
     {
         prof->p_state = STAGE3_STATE_WAIT;
@@ -716,7 +728,6 @@ int pattern_stage_4f(Stage *stage, Obstacle *prof, Player *player, double delta_
     if (!prof || !player)
         return 1;
 
-   
     const char *PROF_LV5_SFX_PATH = "bgm/Professor_lv5.wav";
 
     if (prof->alert && prof->p_timer == 0.0)
@@ -781,50 +792,46 @@ int pattern_stage_4f(Stage *stage, Obstacle *prof, Player *player, double delta_
 
 int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
-    if (!stage || !prof || !player) return 1;
+    if (!stage || !prof || !player)
+        return 1;
 
-    
-    // 1. 분신 개수 
-    const int NERFED_CLONE_COUNT = 8; 
+    // 1. 분신 개수
+    const int NERFED_CLONE_COUNT = 8;
 
     // 2. 플레이어 이속 감소 비율
-    
-    const double NERFED_SLOW_FACTOR = 0.40; //60퍼센트 느려짐
+
+    const double NERFED_SLOW_FACTOR = 0.40; // 60퍼센트 느려짐
 
     // 3. 시야 차단 강도 (Stage 2 능력)
     // 1: 항상 어둠, 0: 특정 패턴(분신) 때만 어둠
-    const int ALWAYS_DARK = 0; 
-    
+    const int ALWAYS_DARK = 0;
+
     // 4. 패턴 주기 (초)
     const double PATTERN_LOOP_TIME = 8.0;
-    
-  
 
     // 1. 발각 사운드 및 초기화 (최초 1회)
     const char *PROF_LV6_SFX_PATH = "bgm/Professor_lv6.wav";
-    if (prof->alert && prof->p_misc == 0) 
+    if (prof->alert && prof->p_misc == 0)
     {
         play_sfx_nonblocking(PROF_LV6_SFX_PATH);
-        prof->p_misc = 1; 
+        prof->p_misc = 1;
         prof->p_timer = 0.0;
     }
     else if (!prof->alert)
     {
-        prof->p_misc = 0; 
+        prof->p_misc = 0;
         prof->p_timer = 0.0;
-        player->is_confused = 0; 
-        
-       
+        player->is_confused = 0;
+
         double base = player->base_move_speed * player->speed_multiplier;
         player->move_speed = base;
         return 1;
     }
 
-    if (delta_time < 0.0) delta_time = 0.0;
-    prof->p_timer += delta_time; 
+    if (delta_time < 0.0)
+        delta_time = 0.0;
+    prof->p_timer += delta_time;
 
-   
-   
     {
         const double SLOW_CYCLE = 4.0;
         double t = fmod(prof->p_timer, SLOW_CYCLE);
@@ -832,52 +839,55 @@ int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double delta_
         double factor = 1.0;
 
         // 4초마다 3초간 느려짐
-        if (t < 2) factor = NERFED_SLOW_FACTOR; // 설정한 변수 적용
-        else {
-             // 빠르게 회복
-             double u = (t - 2) / 1.0; 
-             if(u > 1.0) u = 1.0;
-             factor = NERFED_SLOW_FACTOR + (1.0 - NERFED_SLOW_FACTOR) * u;
+        if (t < 2)
+            factor = NERFED_SLOW_FACTOR; // 설정한 변수 적용
+        else
+        {
+            // 빠르게 회복
+            double u = (t - 2) / 1.0;
+            if (u > 1.0)
+                u = 1.0;
+            factor = NERFED_SLOW_FACTOR + (1.0 - NERFED_SLOW_FACTOR) * u;
         }
         player->move_speed = base_speed * factor;
     }
 
-   
     // 패턴 스케줄링 (Stage 1, 2, 3, 4 종합)
-   double loop_time = fmod(prof->p_timer, PATTERN_LOOP_TIME);
+    double loop_time = fmod(prof->p_timer, PATTERN_LOOP_TIME);
     int should_move = 1; // 기본적으로는 움직임 (1)
 
-    // Phase 1: 탄막 발사 
-    if (loop_time < 4.0) 
+    // Phase 1: 탄막 발사
+    if (loop_time < 4.0)
     {
         player->is_confused = ALWAYS_DARK;
         static double last_shot_time = 0;
-        if (loop_time < delta_time * 2) last_shot_time = -1.0;
+        if (loop_time < delta_time * 2)
+            last_shot_time = -1.0;
 
-        if (loop_time - last_shot_time > 0.8) {
-            spawn_stage3_bullet(stage, prof, player); 
+        if (loop_time - last_shot_time > 0.8)
+        {
+            spawn_stage3_bullet(stage, prof, player);
             last_shot_time = loop_time;
         }
     }
-  
+
     else if (loop_time >= 4.0 && loop_time < 7.0)
     {
-        player->is_confused = 1; 
+        player->is_confused = 1;
 
         // 4.0초가 되는 순간 실행
-        if (loop_time - 4.0 < delta_time * 1.5) 
+        if (loop_time - 4.0 < delta_time * 1.5)
         {
             spawn_professor_clones(stage, player, prof, NERFED_CLONE_COUNT, 3.0);
-            
-            should_move = 0; 
+
+            should_move = 0;
         }
     }
     // Phase 3: 순간 이동 (중요!)
-    else 
+    else
     {
-        player->is_confused = ALWAYS_DARK; 
+        player->is_confused = ALWAYS_DARK;
 
-       
         if (loop_time - 7.0 < delta_time * 1.5)
         {
             int px = player->world_x / SUBPIXELS_PER_TILE;
@@ -886,7 +896,7 @@ int pattern_stage_5f(Stage *stage, Obstacle *prof, Player *player, double delta_
             int offset_y = (rand() % 5) - 2;
             prof->world_x = (px + offset_x) * SUBPIXELS_PER_TILE;
             prof->world_y = (py + offset_y) * SUBPIXELS_PER_TILE;
-            
+
             should_move = 0; // 👈 [수정] 순간이동 한 프레임은 이동 로직 건너뜀
         }
     }
