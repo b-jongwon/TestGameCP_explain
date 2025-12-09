@@ -8,6 +8,7 @@
 #include "../include/stage.h"
 #include "../include/player.h"
 #include "../include/obstacle.h"
+#include "../include/professor_pattern.h"
 #include "../include/render.h"
 #include "../include/timer.h"
 #include "../include/fileio.h"
@@ -358,9 +359,28 @@ int main(int argc, char *argv[])
 
             pthread_mutex_unlock(&g_stage_mutex);
 
+            ProfessorBulletResult bullet_result = PROFESSOR_BULLET_RESULT_NONE;
             pthread_mutex_lock(&g_stage_mutex);
             move_projectiles(&stage);
+            bullet_result = update_professor_bullets(&stage, &player, frame_delta);
             pthread_mutex_unlock(&g_stage_mutex);
+
+            if (bullet_result == PROFESSOR_BULLET_RESULT_SHIELD_BLOCKED)
+            {
+                printf("교수의 탄환을 쉴드로 막았습니다! 남은 쉴드: %d개\n", player.shield_count);
+                play_sfx_nonblocking(item_use_sound_path);
+            }
+            else if (bullet_result == PROFESSOR_BULLET_RESULT_FATAL)
+            {
+                stop_bgm();
+
+                const char *tts_game_out_command = "espeak -a 200 -v en-us+m5 -s 140 'Game Out!'";
+                fflush(stdout);
+                system(tts_game_out_command);
+                play_obstacle_caught_sound(gameover_bgm_path);
+                stage_failed = 1;
+                break;
+            }
 
             struct timespec frame_end_ts;
             clock_gettime(CLOCK_MONOTONIC, &frame_end_ts);

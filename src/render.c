@@ -115,6 +115,7 @@ static SDL_Texture *g_tex_item_supply = NULL;  // 투사체 보충 아이템
 
 static SDL_Texture *g_tex_projectile = NULL; // 투사체
 static SDL_Texture *g_tex_shield_on = NULL;  // 플레이어 보호막 활성화
+static SDL_Texture *g_tex_professor_bullet = NULL; // 교수 탄환
 
 static SDL_Texture *g_tex_trap = NULL;       // 트랩
 static SDL_Texture *g_tex_wall_break = NULL; // 깨지는 벽
@@ -588,10 +589,11 @@ int init_renderer(void)
     g_tex_trap = load_texture("assets/image/trap.png");         // 트랩 (일반타일로 의문사 또는 실제 보이게 해서 못 지나가도록)
     g_tex_wall_break = load_texture("assets/image/wall64.png"); // 깨지는 벽
 
-    g_tex_projectile = load_texture("assets/image/ball.png");      // 투사체 임시 렌더링
-    g_tex_shield_on = load_texture("assets/image/shieldon64.png"); // 보호막 활성화 표현
+    g_tex_projectile = load_texture("assets/image/ball.png");       // 플레이어 투사체
+    g_tex_professor_bullet = load_texture("assets/image/bullet.png"); // 교수 스킬 탄환
+    g_tex_shield_on = load_texture("assets/image/shieldon64.png");  // 보호막 활성화 표현
 
-    if (!g_tex_projectile || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
+    if (!g_tex_projectile || !g_tex_professor_bullet || !g_tex_item_shield || !g_tex_item_scooter || !g_tex_shield_on)
         return -1;
 
     if (!g_tex_floor || !g_tex_wall || !g_tex_goal || !g_tex_professor_1 || !g_tex_exit ||
@@ -649,7 +651,8 @@ void shutdown_renderer(void)
 
     destroy_texture(&g_tex_trap); // 트랩
 
-    destroy_texture(&g_tex_projectile); // 투사체 셧다운
+    destroy_texture(&g_tex_projectile);        // 플레이어 투사체
+    destroy_texture(&g_tex_professor_bullet);  // 교수 탄환
     destroy_texture(&g_tex_shield_on);  // 플레이어 보호막 텍스처
     destroy_texture(&g_tex_student_w_left);
     destroy_texture(&g_tex_student_w_right);
@@ -1117,6 +1120,31 @@ void render(const Stage *stage, const Player *player, double elapsed_time,
             draw_texture_at_world(g_tex_projectile, projectile_world_x, projectile_world_y, &camera);
         }
     } // 투사체 렌더링
+
+    if (g_tex_professor_bullet)
+    {
+        for (int i = 0; i < MAX_PROFESSOR_BULLETS; ++i)
+        {
+            const ProfessorBullet *bullet = &stage->professor_bullets[i];
+            if (!bullet->active)
+            {
+                continue;
+            }
+            double tile_x = bullet->world_x;
+            double tile_y = bullet->world_y;
+            int cell_x = (int)floor(tile_x);
+            int cell_y = (int)floor(tile_y);
+            if (cell_x < 0 || cell_y < 0 || cell_x >= stage_width || cell_y >= stage_height)
+            {
+                continue;
+            }
+            if (!visibility[cell_y][cell_x])
+            {
+                continue;
+            }
+            draw_texture_at_world(g_tex_professor_bullet, tile_x, tile_y, &camera);
+        }
+    }
 
     PlayerFacing facing = player->facing;
     if (facing < 0 || facing >= PLAYER_FACING_COUNT)

@@ -2,6 +2,7 @@
 
 #include "../include/professor_pattern.h"
 #include "../include/sound.h"
+#include "../include/player.h"
 #include <stdio.h>
 #include <math.h>
 #include <stdlib.h>
@@ -27,6 +28,18 @@ static const int kB1ClonesPerCast = 16;
 static const char *kB1ContactSfx = "bgm/Professor_b1_contact.wav";
 static const char *kB1SkillASfx = "bgm/Professor_b1_illusion.wav";
 static const char *kB1SkillBSfx = "bgm/Professor_b1_2power2.wav";
+
+enum
+{
+    STAGE3_STATE_WAIT = 0,
+    STAGE3_STATE_FIRING = 1
+};
+
+static const double kStage3BurstInterval = 2.5;
+static const double kStage3ShotSpacing = 0.3;
+static const int kStage3ShotsPerBurst = 3;
+static const double kStage3BulletSpeed = 6.0;
+static const double kStage3BulletLifetime = 4.0;
 
 static void clear_professor_clones(Stage *stage)
 {
@@ -259,6 +272,152 @@ static void cast_b1_skill_b(Stage *stage, const Player *player, const Obstacle *
 {
     spawn_professor_clones(stage, player, prof, kB1ClonesPerCast, kB1SkillBCloneLifetime);
     play_sfx_nonblocking(kB1SkillBSfx);
+}
+
+static ProfessorBullet *acquire_professor_bullet_slot(Stage *stage)
+{
+    if (!stage)
+    {
+        return NULL;
+    }
+
+    for (int i = 0; i < MAX_PROFESSOR_BULLETS; ++i)
+    {
+        ProfessorBullet *slot = &stage->professor_bullets[i];
+        if (!slot->active)
+        {
+            return slot;
+        }
+    }
+    return NULL;
+}
+
+static void spawn_stage3_bullet(Stage *stage, const Obstacle *prof, const Player *player)
+{
+    if (!stage || !prof || !player)
+    {
+        return;
+    }
+
+    ProfessorBullet *slot = acquire_professor_bullet_slot(stage);
+    if (!slot)
+    {
+        return;
+    }
+
+    const double tile_scale = (double)SUBPIXELS_PER_TILE;
+    double origin_x = ((double)prof->world_x + tile_scale / 2.0) / tile_scale;
+    double origin_y = ((double)prof->world_y + tile_scale / 2.0) / tile_scale;
+    double player_center_x = ((double)player->world_x + tile_scale / 2.0) / tile_scale;
+    double player_center_y = ((double)player->world_y + tile_scale / 2.0) / tile_scale;
+
+    double dir_x = player_center_x - origin_x;
+    double dir_y = player_center_y - origin_y;
+    double len = hypot(dir_x, dir_y);
+    if (len < 1e-5)
+    {
+        dir_x = 0.0;
+        dir_y = 1.0;
+        len = 1.0;
+    }
+
+    dir_x /= len;
+    dir_y /= len;
+
+    slot->world_x = origin_x - 0.5;
+    slot->world_y = origin_y - 0.5;
+    slot->vel_x = dir_x * kStage3BulletSpeed;
+    slot->vel_y = dir_y * kStage3BulletSpeed;
+    slot->remaining_time = kStage3BulletLifetime;
+    slot->active = 1;
+    if (stage->num_professor_bullets < MAX_PROFESSOR_BULLETS)
+    {
+        stage->num_professor_bullets++;
+    }
+}
+
+ProfessorBulletResult update_professor_bullets(Stage *stage, Player *player, double delta_time)
+{
+    if (!stage)
+    {
+        return PROFESSOR_BULLET_RESULT_NONE;
+    }
+
+    if (delta_time < 0.0)
+    {
+        delta_time = 0.0;
+    }
+
+    ProfessorBulletResult result = PROFESSOR_BULLET_RESULT_NONE;
+    int active_count = 0;
+    int width = (stage->width > 0) ? stage->width : MAX_X;
+    int height = (stage->height > 0) ? stage->height : MAX_Y;
+
+    for (int i = 0; i < MAX_PROFESSOR_BULLETS; ++i)
+    {
+        ProfessorBullet *bullet = &stage->professor_bullets[i];
+        if (!bullet->active)
+        {
+            continue;
+        }
+
+        if (delta_time > 0.0)
+        {
+            bullet->world_x += bullet->vel_x * delta_time;
+            bullet->world_y += bullet->vel_y * delta_time;
+        }
+
+        bullet->remaining_time -= delta_time;
+        if (bullet->remaining_time <= 0.0)
+        {
+            bullet->active = 0;
+            continue;
+        }
+
+        double center_x = bullet->world_x + 0.5;
+        double center_y = bullet->world_y + 0.5;
+        int tile_x = (int)floor(center_x);
+        int tile_y = (int)floor(center_y);
+        if (tile_x < 0 || tile_y < 0 || tile_x >= width || tile_y >= height)
+        {
+            bullet->active = 0;
+            continue;
+        }
+
+        if (is_tile_impassable_char(stage->map[tile_y][tile_x]))
+        {
+            bullet->active = 0;
+            continue;
+        }
+
+        if (player)
+        {
+            int center_world_x = (int)lround(center_x * SUBPIXELS_PER_TILE);
+            int center_world_y = (int)lround(center_y * SUBPIXELS_PER_TILE);
+            if (is_world_point_inside_player(player, center_world_x, center_world_y))
+            {
+                bullet->active = 0;
+                if (player->shield_count > 0)
+                {
+                    player->shield_count--;
+                    if (result != PROFESSOR_BULLET_RESULT_FATAL)
+                    {
+                        result = PROFESSOR_BULLET_RESULT_SHIELD_BLOCKED;
+                    }
+                }
+                else
+                {
+                    result = PROFESSOR_BULLET_RESULT_FATAL;
+                }
+                continue;
+            }
+        }
+
+        active_count++;
+    }
+
+    stage->num_professor_bullets = active_count;
+    return result;
 }
 
 int pattern_stage_b1(Stage *stage, Obstacle *prof, Player *player, double delta_time)
@@ -494,8 +653,58 @@ int pattern_stage_2f(Stage *stage, Obstacle *prof, Player *player, double delta_
 
 int pattern_stage_3f(Stage *stage, Obstacle *prof, Player *player, double delta_time)
 {
+    if (!stage || !prof || !player)
+    {
+        return 1;
+    }
 
-    return 1;
+    if (!prof->alert)
+    {
+        prof->p_state = STAGE3_STATE_WAIT;
+        prof->p_timer = 0.0;
+        prof->p_counter = 0;
+        return 1;
+    }
+
+    if (delta_time < 0.0)
+    {
+        delta_time = 0.0;
+    }
+
+    if (prof->p_state != STAGE3_STATE_WAIT && prof->p_state != STAGE3_STATE_FIRING)
+    {
+        prof->p_state = STAGE3_STATE_WAIT;
+        prof->p_timer = 0.0;
+        prof->p_counter = 0;
+    }
+
+    if (prof->p_state == STAGE3_STATE_WAIT)
+    {
+        prof->p_timer += delta_time;
+        if (prof->p_timer >= kStage3BurstInterval)
+        {
+            prof->p_timer = 0.0;
+            prof->p_counter = 0;
+            prof->p_state = STAGE3_STATE_FIRING;
+        }
+        return 1;
+    }
+
+    prof->p_timer -= delta_time;
+    while (prof->p_timer <= 0.0 && prof->p_counter < kStage3ShotsPerBurst)
+    {
+        spawn_stage3_bullet(stage, prof, player);
+        prof->p_counter++;
+        prof->p_timer += kStage3ShotSpacing;
+    }
+
+    if (prof->p_counter >= kStage3ShotsPerBurst)
+    {
+        prof->p_state = STAGE3_STATE_WAIT;
+        prof->p_timer = 0.0;
+    }
+
+    return 0;
 }
 
 /**

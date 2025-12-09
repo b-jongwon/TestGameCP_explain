@@ -15,6 +15,7 @@
 #define MAX_PROFESSOR_CLONES 48      // 교수 패턴에서 동시에 관리할 수 있는 최대 분신 수
 #define MAX_PASSABLE_TILES (MAX_X * MAX_Y)
 #define MAX_PROFESSOR_CLONES 48      // 교수 패턴에서 동시에 관리할 수 있는 분신 수
+#define MAX_PROFESSOR_BULLETS 32     // 교수 스킬 탄환 동시 관리 수
 
 // 아이템 종류
 typedef enum
@@ -138,6 +139,16 @@ typedef struct
     short y;
 } TileCoord;
 
+typedef struct
+{
+    double world_x;       // 타일 기준 좌상단 좌표
+    double world_y;
+    double vel_x;         // 타일/초 단위 속도
+    double vel_y;
+    double remaining_time;
+    int active;
+} ProfessorBullet;
+
 // Stage 구조체
 // - 한 스테이지에 대한 거의 모든 정보를 담는 구조체.
 // - 스테이지 ID, 이름, 맵 데이터, 시작/목표 위치, 장애물 목록 등을 포함.
@@ -166,6 +177,9 @@ typedef struct
 
     int num_professor_clones;                     // 교수 분신 수 (활성 상태)
     ProfessorClone professor_clones[MAX_PROFESSOR_CLONES]; // 교수 분신 정보
+
+    int num_professor_bullets;                     // 교수 탄환 수 (활성 상태)
+    ProfessorBullet professor_bullets[MAX_PROFESSOR_BULLETS];
 
     int num_passable_tiles;
     TileCoord passable_tiles[MAX_PASSABLE_TILES];
