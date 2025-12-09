@@ -1,13 +1,16 @@
+#include <SDL2/SDL.h>
+#include <errno.h>
+#include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <limits.h>
-
-// pid_t, fork, kill, waitpid, setpgid 사용을 위한 필수 헤더
-#include <sys/types.h>
 #include <unistd.h>
+#include <sys/types.h>
 #include <sys/wait.h>
+#include <fcntl.h>
+#include <stdint.h>
 
 #include "sound.h"
 
@@ -16,6 +19,10 @@ static pid_t bgm_pid = -1;
 static int aplay_available = -1;
 static int espeak_available = -1;
 static int say_available = -1; // ✅ [추가] macOS 'say' 명령어의 가용성 캐시
+static pid_t g_sound_worker_pid = -1;
+static int g_sound_pipe[2] = {-1, -1};
+static int g_sound_worker_started = 0;
+static SDL_AudioDeviceID g_sound_device = 0;
 
 #ifndef PATH_MAX
 #define PATH_MAX 4096
@@ -77,6 +84,498 @@ static int command_exists_in_path(const char *cmd)
     }
 
     return 0;
+}
+
+static int write_full(int fd, const void *buf, size_t len)
+{
+    const uint8_t *ptr = (const uint8_t *)buf;
+    while (len > 0)
+    {
+        ssize_t written = write(fd, ptr, len);
+        if (written < 0)
+        {
+            if (errno == EINTR)
+                continue;
+            return 0;
+        }
+        ptr += written;
+        len -= (size_t)written;
+    }
+    return 1;
+}
+
+static int read_full(int fd, void *buf, size_t len)
+{
+    uint8_t *ptr = (uint8_t *)buf;
+    while (len > 0)
+    {
+        ssize_t r = read(fd, ptr, len);
+        if (r == 0)
+        {
+            return 0;
+        }
+        if (r < 0)
+        {
+            if (errno == EINTR)
+                continue;
+            return 0;
+        }
+        ptr += r;
+        len -= (size_t)r;
+    }
+    return 1;
+}
+
+#define SOUND_PATH_MAX 1024
+
+typedef struct
+{
+    uint16_t type;
+    uint16_t path_len;
+} __attribute__((packed)) SoundCommandHeader;
+
+enum
+{
+    SOUND_CMD_PLAY = 1,
+    SOUND_CMD_QUIT = 2,
+    SOUND_CMD_PRELOAD = 3
+};
+
+typedef struct
+{
+    char path[SOUND_PATH_MAX + 1];
+    Uint8 *data;
+    Uint32 length;
+} SoundCacheEntry;
+
+#define SOUND_CACHE_MAX 64
+
+typedef struct
+{
+    const SoundCacheEntry *sound;
+    Uint32 offset;
+    int active;
+    pthread_cond_t cond;
+} PlaybackSlot;
+
+#define MAX_ACTIVE_PLAYBACKS 16
+
+static PlaybackSlot g_playback_slots[MAX_ACTIVE_PLAYBACKS];
+static pthread_mutex_t g_playback_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static SoundCacheEntry *find_cached_sound(SoundCacheEntry *cache, int cache_count, const char *path)
+{
+    for (int i = 0; i < cache_count; ++i)
+    {
+        if (strcmp(cache[i].path, path) == 0)
+        {
+            return &cache[i];
+        }
+    }
+    return NULL;
+}
+
+static SoundCacheEntry *load_sound_into_cache(const char *path, const SDL_AudioSpec *target_spec,
+                                              SoundCacheEntry *cache, int *cache_count)
+{
+    if (*cache_count >= SOUND_CACHE_MAX)
+    {
+        return NULL;
+    }
+
+    SDL_AudioSpec wav_spec;
+    Uint8 *wav_buf = NULL;
+    Uint32 wav_len = 0;
+    if (!SDL_LoadWAV(path, &wav_spec, &wav_buf, &wav_len))
+    {
+        return NULL;
+    }
+
+    SDL_AudioCVT cvt;
+    if (SDL_BuildAudioCVT(&cvt, wav_spec.format, wav_spec.channels, wav_spec.freq,
+                          target_spec->format, target_spec->channels, target_spec->freq) < 0)
+    {
+        SDL_FreeWAV(wav_buf);
+        return NULL;
+    }
+
+    Uint8 *final_buf = NULL;
+    Uint32 final_len = 0;
+
+    if (cvt.needed)
+    {
+        cvt.len = (int)wav_len;
+        cvt.buf = (Uint8 *)SDL_malloc(wav_len * cvt.len_mult);
+        if (!cvt.buf)
+        {
+            SDL_FreeWAV(wav_buf);
+            return NULL;
+        }
+        memcpy(cvt.buf, wav_buf, wav_len);
+        SDL_FreeWAV(wav_buf);
+        if (SDL_ConvertAudio(&cvt) != 0)
+        {
+            SDL_free(cvt.buf);
+            return NULL;
+        }
+        final_buf = cvt.buf;
+        final_len = (Uint32)cvt.len_cvt;
+    }
+    else
+    {
+        final_buf = (Uint8 *)SDL_malloc(wav_len);
+        if (!final_buf)
+        {
+            SDL_FreeWAV(wav_buf);
+            return NULL;
+        }
+        memcpy(final_buf, wav_buf, wav_len);
+        final_len = wav_len;
+        SDL_FreeWAV(wav_buf);
+    }
+
+    SoundCacheEntry *entry = &cache[(*cache_count)++];
+    strncpy(entry->path, path, sizeof(entry->path) - 1);
+    entry->path[sizeof(entry->path) - 1] = '\0';
+    entry->data = final_buf;
+    entry->length = final_len;
+    return entry;
+}
+
+static void audio_mix_callback(void *userdata, Uint8 *stream, int len)
+{
+    (void)userdata;
+    SDL_memset(stream, 0, len);
+    pthread_mutex_lock(&g_playback_mutex);
+    int16_t *dst = (int16_t *)stream;
+    int total_samples = len / (int)sizeof(int16_t);
+
+    for (int i = 0; i < MAX_ACTIVE_PLAYBACKS; ++i)
+    {
+        PlaybackSlot *slot = &g_playback_slots[i];
+        if (!slot->active || !slot->sound)
+        {
+            continue;
+        }
+
+        Uint32 remaining_bytes = slot->sound->length - slot->offset;
+        if (remaining_bytes == 0)
+        {
+            slot->active = 0;
+            pthread_cond_signal(&slot->cond);
+            continue;
+        }
+
+        int bytes_to_mix = (int)((remaining_bytes < (Uint32)len) ? remaining_bytes : (Uint32)len);
+        int samples_to_mix = bytes_to_mix / (int)sizeof(int16_t);
+        const int16_t *src = (const int16_t *)(slot->sound->data + slot->offset);
+
+        for (int s = 0; s < samples_to_mix && s < total_samples; ++s)
+        {
+            int mixed = dst[s] + src[s];
+            if (mixed > 32767)
+                mixed = 32767;
+            else if (mixed < -32768)
+                mixed = -32768;
+            dst[s] = (int16_t)mixed;
+        }
+
+        slot->offset += (Uint32)(samples_to_mix * (int)sizeof(int16_t));
+        if (slot->offset >= slot->sound->length)
+        {
+            slot->active = 0;
+            pthread_cond_signal(&slot->cond);
+        }
+    }
+
+    pthread_mutex_unlock(&g_playback_mutex);
+}
+
+static void *playback_thread_main(void *arg)
+{
+    int slot_index = (int)(intptr_t)arg;
+    pthread_mutex_lock(&g_playback_mutex);
+    while (g_playback_slots[slot_index].active)
+    {
+        pthread_cond_wait(&g_playback_slots[slot_index].cond, &g_playback_mutex);
+    }
+    pthread_mutex_unlock(&g_playback_mutex);
+    return NULL;
+}
+
+static void start_playback_in_worker(const SoundCacheEntry *entry)
+{
+    pthread_mutex_lock(&g_playback_mutex);
+    int slot = -1;
+    for (int i = 0; i < MAX_ACTIVE_PLAYBACKS; ++i)
+    {
+        if (!g_playback_slots[i].active)
+        {
+            slot = i;
+            break;
+        }
+    }
+
+    if (slot == -1)
+    {
+        pthread_mutex_unlock(&g_playback_mutex);
+        return;
+    }
+
+    PlaybackSlot *ps = &g_playback_slots[slot];
+    ps->sound = entry;
+    ps->offset = 0;
+    ps->active = 1;
+    pthread_mutex_unlock(&g_playback_mutex);
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, playback_thread_main, (void *)(intptr_t)slot) == 0)
+    {
+        pthread_detach(thread);
+    }
+    else
+    {
+        pthread_mutex_lock(&g_playback_mutex);
+        ps->active = 0;
+        pthread_mutex_unlock(&g_playback_mutex);
+    }
+}
+
+static void sound_worker_loop(int read_fd)
+{
+    SDL_SetHint(SDL_HINT_AUDIO_RESAMPLING_MODE, "medium");
+    if (SDL_Init(SDL_INIT_AUDIO) != 0)
+    {
+        _exit(1);
+    }
+
+    SDL_AudioSpec desired;
+    SDL_zero(desired);
+    desired.freq = 44100;
+    desired.format = AUDIO_S16SYS;
+    desired.channels = 2;
+    desired.samples = 1024;
+    desired.callback = audio_mix_callback;
+
+    SDL_AudioDeviceID device = SDL_OpenAudioDevice(NULL, 0, &desired, NULL, 0);
+    if (device == 0)
+    {
+        SDL_QuitSubSystem(SDL_INIT_AUDIO);
+        _exit(1);
+    }
+    g_sound_device = device;
+    SDL_PauseAudioDevice(device, 0);
+
+    for (int i = 0; i < MAX_ACTIVE_PLAYBACKS; ++i)
+    {
+        g_playback_slots[i].sound = NULL;
+        g_playback_slots[i].offset = 0;
+        g_playback_slots[i].active = 0;
+        pthread_cond_init(&g_playback_slots[i].cond, NULL);
+    }
+
+    SoundCacheEntry cache[SOUND_CACHE_MAX];
+    int cache_count = 0;
+
+    SoundCommandHeader header;
+    while (read_full(read_fd, &header, sizeof(header)))
+    {
+        if (header.type == SOUND_CMD_PLAY)
+        {
+            uint16_t len = header.path_len;
+            if (len > SOUND_PATH_MAX)
+            {
+                len = SOUND_PATH_MAX;
+            }
+            char path[SOUND_PATH_MAX + 1];
+            if (!read_full(read_fd, path, len))
+            {
+                break;
+            }
+            path[len] = '\0';
+
+            SoundCacheEntry *entry = find_cached_sound(cache, cache_count, path);
+            if (!entry)
+            {
+                entry = load_sound_into_cache(path, &desired, cache, &cache_count);
+            }
+            if (entry)
+            {
+                start_playback_in_worker(entry);
+            }
+        }
+        else if (header.type == SOUND_CMD_PRELOAD)
+        {
+            uint16_t len = header.path_len;
+            if (len > SOUND_PATH_MAX)
+            {
+                len = SOUND_PATH_MAX;
+            }
+            char path[SOUND_PATH_MAX + 1];
+            if (!read_full(read_fd, path, len))
+            {
+                break;
+            }
+            path[len] = '\0';
+
+            SoundCacheEntry *entry = find_cached_sound(cache, cache_count, path);
+            if (!entry)
+            {
+                load_sound_into_cache(path, &desired, cache, &cache_count);
+            }
+        }
+        else if (header.type == SOUND_CMD_QUIT)
+        {
+            break;
+        }
+    }
+
+    close(read_fd);
+    for (int i = 0; i < cache_count; ++i)
+    {
+        SDL_free(cache[i].data);
+    }
+
+    SDL_CloseAudioDevice(device);
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    _exit(0);
+}
+
+static void shutdown_sound_worker(void)
+{
+    if (g_sound_worker_pid <= 0)
+    {
+        return;
+    }
+
+    SoundCommandHeader header = {SOUND_CMD_QUIT, 0};
+    write_full(g_sound_pipe[1], &header, sizeof(header));
+    close(g_sound_pipe[1]);
+    g_sound_pipe[1] = -1;
+    waitpid(g_sound_worker_pid, NULL, 0);
+    g_sound_worker_pid = -1;
+    g_sound_worker_started = 0;
+}
+
+static int ensure_sound_worker_started(void)
+{
+    if (g_sound_worker_started)
+    {
+        return 1;
+    }
+
+    if (pipe(g_sound_pipe) != 0)
+    {
+        return 0;
+    }
+
+    fcntl(g_sound_pipe[0], F_SETFD, FD_CLOEXEC);
+    fcntl(g_sound_pipe[1], F_SETFD, FD_CLOEXEC);
+
+    pid_t pid = fork();
+    if (pid == 0)
+    {
+        close(g_sound_pipe[1]);
+        sound_worker_loop(g_sound_pipe[0]);
+        _exit(0);
+    }
+    else if (pid < 0)
+    {
+        close(g_sound_pipe[0]);
+        close(g_sound_pipe[1]);
+        g_sound_pipe[0] = g_sound_pipe[1] = -1;
+        return 0;
+    }
+
+    close(g_sound_pipe[0]);
+    g_sound_pipe[0] = -1;
+    g_sound_worker_pid = pid;
+    g_sound_worker_started = 1;
+    atexit(shutdown_sound_worker);
+    return 1;
+}
+
+static int send_sound_command(uint16_t type, const char *path)
+{
+    if (g_sound_pipe[1] == -1)
+    {
+        return 0;
+    }
+
+    SoundCommandHeader header;
+    header.type = type;
+    header.path_len = 0;
+
+    uint16_t len = 0;
+    if (path)
+    {
+        size_t raw_len = strlen(path);
+        if (raw_len > SOUND_PATH_MAX)
+        {
+            raw_len = SOUND_PATH_MAX;
+        }
+        len = (uint16_t)raw_len;
+    }
+    header.path_len = len;
+
+    if (!write_full(g_sound_pipe[1], &header, sizeof(header)))
+    {
+        return 0;
+    }
+
+    if (len > 0 && path)
+    {
+        if (!write_full(g_sound_pipe[1], path, len))
+        {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static void preload_known_sounds(void)
+{
+    static int done = 0;
+    if (done)
+    {
+        return;
+    }
+
+    if (!ensure_sound_worker_started())
+    {
+        return;
+    }
+
+    static const char *kPreloadList[] = {
+        "bgm/Get_Bag.wav",
+        "bgm/Get_Item.wav",
+        "bgm/Use_Item.wav",
+        "bgm/Next_Level.wav",
+        "bgm/No_Item.wav",
+        "bgm/Walking.wav",
+        "bgm/B1_SkillA.wav",
+        "bgm/B1_SkillB.wav",
+        "bgm/Professor_lv2.wav",
+        "bgm/Professor_lv6.wav"
+    };
+
+    const size_t count = sizeof(kPreloadList) / sizeof(kPreloadList[0]);
+    for (size_t i = 0; i < count; ++i)
+    {
+        send_sound_command(SOUND_CMD_PRELOAD, kPreloadList[i]);
+    }
+
+    done = 1;
+}
+
+void init_sound_system(void)
+{
+    if (!ensure_sound_worker_started())
+    {
+        return;
+    }
+    preload_known_sounds();
 }
 
 static int ensure_command_available(const char *cmd, int *cache, const char *install_hint)
@@ -191,33 +690,30 @@ void stop_bgm()
  */
 void play_sfx_nonblocking(const char *filePath)
 {
+    if (filePath && ensure_sound_worker_started())
+    {
+        if (send_sound_command(SOUND_CMD_PLAY, filePath))
+        {
+            return;
+        }
+    }
 
     if (!ensure_command_available("aplay", &aplay_available, "alsa-utils"))
     {
         return;
     }
 
-    pid_t pid = fork(); //
-
+    pid_t pid = fork();
     if (pid == 0)
     {
-        // --- 자식 프로세스 영역 (SFX 재생) ---
-
-        // 쉘 명령어를 실행하고 소리가 끝나면 즉시 종료
-        char command[256];
-        // &를 붙이면 비동기지만, system()을 사용하고 exit(0)로 마무리하는 것이 더 확실한 정리가 됩니다.
-        sprintf(command, "aplay -q %s", filePath);
-
-        system(command);
-
-        // 자식 프로세스는 소리가 끝난 후 반드시 종료되어야 합니다.
-        exit(0);
+        execlp("aplay", "aplay", "-q", filePath, (char *)NULL);
+        perror("aplay sfx");
+        _exit(1);
     }
     else if (pid < 0)
     {
         perror("SFX fork failed");
     }
-    // 부모 프로세스(메인 루프)는 즉시 리턴하여 작업을 계속합니다.
 }
 
 // ----------------------------------------------------

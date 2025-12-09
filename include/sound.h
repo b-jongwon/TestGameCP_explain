@@ -10,6 +10,9 @@
 // loop: 1이면 반복 재생
 void play_bgm(const char *filePath, int loop);
 
+// 사운드 워커, 캐시 등을 초기화 (게임 시작 시 1회 호출 권장)
+void init_sound_system(void);
+
 // 논블로킹 효과음 재생 함수
 void play_sfx_nonblocking(const char *filePath);
 

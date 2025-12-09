@@ -31,6 +31,8 @@ int main(int argc, char *argv[])
     // signal(SIGCHLD, SIG_IGN);
     setup_signal_handlers();
 
+    init_sound_system();
+
     if (init_renderer() != 0)
     {
         fprintf(stderr, "Failed to initialize renderer\n");

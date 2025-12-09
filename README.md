@@ -21,6 +21,12 @@ Ubuntu/Debian 계열이라면 다음 명령으로 설치할 수 있습니다.
 sudo apt install libsdl2-dev libsdl2-image-dev alsa-utils espeak
 ```
 
+WSL/VM처럼 ALSA 기본 장치가 없는 환경에서는 `aplay`가 실패할 수 있으니 PulseAudio를 추가 설치하고 Windows(또는 호스트)에서 PulseAudio 서버를 실행해 주세요.
+
+```bash
+sudo apt install pulseaudio
+```
+
 ## 빌드 & 실행
 
 ```bash
