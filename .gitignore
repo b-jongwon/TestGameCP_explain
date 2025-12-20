@@ -8,3 +8,8 @@ src/*.d
 
 # 기타 생성 파일
 *.log
+
+# 로컬 패치/디프 파일 (실수로 커밋 방지)
+.comment_cleanup.patch
+.comment_cleanup2.patch
+.patch_gameh.diff
