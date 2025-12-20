@@ -41,7 +41,16 @@ sudo apt install libsdl2-ttf-dev
 ```bash
 make
 ./game
+./game b1.map
+./game 1f.map
+./game 2f.map
+./game 3f.map
+./game 4f.map
+./game 5f.map
+뒤에 맵 파일 이름을 넣으면 특정 맵만 실행 가능 
 ```
+
+
 
 ## 조작법
 
@@ -85,7 +94,6 @@ make
 - Stage5 : 김정근 교수님께서 Latency! 를 외치면 플레이어의 속도가 느려졌다가 4초간 서서히 회복합니다.
 - Stage6 : 유일하게 교수님을 처치할수 있는 스테이지 입니다. 가방을 찾아서 오른쪽 끝의 부서지는 벽을 넘어 보스 공간으로 가면 교수님을 만날 수 있고 여러 스테이지의 패턴이 종합해서 등장합니다. 교수님을 투사체로 18번 공격해서 처치 시 탈출 가능합니다.
 
-
 ## 이미지 매핑
 
 | 맵 문자 | 설명 | 텍스처 |
@@ -106,3 +114,6 @@ make
 
 맵 파일을 수정하면 해당 문자의 위치에 자동으로 이미지가 렌더링됩니다.
 
+
+### 최종 발표 및 시연 영상
+[![시연 영상](https://img.youtube.com/vi/202CRec-17o/0.jpg)](https://www.youtube.com/watch?v=202CRec-17o)
