@@ -594,10 +594,12 @@ static TTF_Font *get_large_ui_font(void)
     return g_ui_font_large ? g_ui_font_large : g_professor_label_font;
 }
 
+/*  사용 안되는 함수 주석처리.
 static TTF_Font *get_small_ui_font(void)
 {
     return g_ui_font_small ? g_ui_font_small : g_professor_label_font;
 }
+*/
 
 static void destroy_professor_label_texture(int index)
 {
@@ -657,6 +659,7 @@ static void rebuild_professor_label_texture(int index)
     g_professor_label_textures[index] = texture;
 }
 
+/* 사용안되는 함수 주석처리.
 static void rebuild_all_professor_label_textures(void)
 {
     for (int i = 0; i < PROFESSOR_TEXTURE_COUNT; ++i)
@@ -664,6 +667,7 @@ static void rebuild_all_professor_label_textures(void)
         rebuild_professor_label_texture(i);
     }
 }
+*/
 
 static void destroy_all_professor_label_textures(void)
 {
