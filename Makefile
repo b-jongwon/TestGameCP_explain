@@ -1,6 +1,6 @@
 CC = gcc
 SDL_CFLAGS := $(shell sdl2-config --cflags 2>/dev/null)
-SDL_LDLIBS := $(shell sdl2-config --libs 2>/dev/null)
+SDL_LDLIBS := $(shell sdl2-config --libs 2>/dev/null) -lSDL2_image -lSDL2_ttf
 SDL_PKGS := sdl2 SDL2_image SDL2_ttf
 
 ifeq ($(SDL_CFLAGS),)
@@ -31,6 +31,7 @@ src/%.o: src/%.c
 
 clean:
 	rm -f $(OBJ) $(DEP) $(TARGET)
+	rm -rf bin
 
 run: all
 	./$(TARGET)
