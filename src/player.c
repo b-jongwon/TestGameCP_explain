@@ -4,6 +4,9 @@
 #include "../include/player.h"
 #include "../include/collision.h"
 
+// 플레이어 로직
+// - 입력은 목표 좌표로 바꿔서 처리
+// - delta_time으로 이동(서브픽셀 정수 좌표)
 
 int g_player_anim_stride_pixels = 4;
 
@@ -31,18 +34,20 @@ static void set_idle_animation(Player *p)
     p->anim_pixel_progress = 0;
 }
 
-void init_player(Player *p, const Stage *stage) {
+void init_player(Player *p, const Stage *stage)
+{
+    // difficulty_player_speed: 타일당 걸리는 시간(초)
+    // move_speed: 초당 서브픽셀
     p->world_x = stage->start_x * SUBPIXELS_PER_TILE;
     p->world_y = stage->start_y * SUBPIXELS_PER_TILE;
     p->target_world_x = p->world_x;
     p->target_world_y = p->world_y;
 
-    
     double speed_setting = (stage->difficulty_player_speed > 0.0) ? stage->difficulty_player_speed : 0.18;
     p->base_move_speed = SUBPIXELS_PER_TILE / speed_setting;
     p->speed_multiplier = 1.0;
     p->move_speed = p->base_move_speed * p->speed_multiplier;
-    
+
     p->move_accumulator = 0.0;
     p->moving = 0;
     p->alive = 1;
@@ -54,23 +59,22 @@ void init_player(Player *p, const Stage *stage) {
     p->anim_pixel_progress = 0;
     p->is_moving = 0;
     p->last_move_time = 0.0;
-    p->shield_count = 0; 
+    p->shield_count = 0;
 }
 
-
-
-void update_player_idle(Player *p, double current_time) {
-    if (!p) return;
+void update_player_idle(Player *p, double current_time)
+{
+    if (!p)
+        return;
 
     if (p->moving)
         return;
-
-    if (p->is_moving && current_time - p->last_move_time >= 0.5) {
+    if (p->is_moving && current_time - p->last_move_time >= 0.5)
+    {
         p->is_moving = 0;
         set_idle_animation(p);
     }
 }
-
 
 static int tile_is_passable(const Stage *stage, int tile_x, int tile_y)
 {
@@ -84,11 +88,9 @@ static int tile_is_passable(const Stage *stage, int tile_x, int tile_y)
 
     char cell = stage->map[tile_y][tile_x];
 
-    
     if (is_tile_impassable_char(cell))
         return 0;
 
-   
     if (is_active_breakable_wall_at(stage, tile_x, tile_y))
     {
         return 0; 

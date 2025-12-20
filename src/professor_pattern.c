@@ -1,5 +1,6 @@
-// src/professor_patterns.c
-
+// 교수 패턴
+// - 스테이지별 패턴 업데이트
+// - 분신/탄환: Stage 배열로 관리
 #include "../include/professor_pattern.h"
 #include "../include/sound.h"
 #include "../include/player.h"
@@ -221,6 +222,7 @@ static int spawn_professor_clones(Stage *stage, const Player *player, const Obst
     {
         return 0;
     }
+    // 소환 후보: 지나갈 수 있는 타일 중에서 겹치지 않는 곳
 
     short candidate_indices[MAX_PASSABLE_TILES];
     int available = 0;

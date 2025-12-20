@@ -1,19 +1,26 @@
 #ifndef GAME_H // game.h 중복 include 방지용 include guard 시작
 #define GAME_H
 
-#define MAX_X 255             // 게임 맵의 가로 길이(열 수).
-#define MAX_Y 100             // 게임 맵의 세로 길이(행 수).
-#define SUBPIXELS_PER_TILE 10 // 1프레임당 이동거리
-#define PLAYER_MOVE_STEP_SUBPIXELS 2
-#define CONSTANT_PROJECTILE_RANGE 10 // 투사체 사거리
-#define SUPPLY_REFILL_AMOUNT 5       // 추가 되는 탄약 수
-#define MAX_OBSTACLES 64             // 한 스테이지에서 허용하는 최대 장애물 개수.
-#define MAX_ITEMS 32                 // 한 스테이지에 배치 가능한 최대 아이템 개수
-#define MAX_PROJECTILES 64           // 한 스테이지에서 동시에 존재할 수 있는 최대 투사체 개수
-#define MAX_PROFESSOR_CLONES 48      // 교수 패턴에서 동시에 관리할 수 있는 최대 분신 수
+// 게임 상수
+// - 좌표: 타일 단위 + 서브픽셀 단위
+// - 타일 -> 월드: tile * SUBPIXELS_PER_TILE
+// - 정수 좌표로 처리(충돌/이동 흔들림 줄임)
+
+#define MAX_X 255 // 맵 최대 가로(열) 길이
+#define MAX_Y 100 // 맵 최대 세로(행) 길이
+
+#define SUBPIXELS_PER_TILE 10        // 1타일을 몇 단위로 쪼갤지 (이동/충돌 정밀도)
+#define PLAYER_MOVE_STEP_SUBPIXELS 2 // 입력 1회당 목표 이동량(서브픽셀)
+
+#define CONSTANT_PROJECTILE_RANGE 10 // 투사체 사거리(타일 단위)
+#define SUPPLY_REFILL_AMOUNT 5       // 탄약 보충 아이템 1회당 증가량
+
+#define MAX_OBSTACLES 64         // 스테이지당 최대 장애물 수
+#define MAX_ITEMS 32             // 스테이지당 최대 아이템 수
+#define MAX_PROJECTILES 64       // 동시 존재 가능한 최대 투사체 수
+#define MAX_PROFESSOR_CLONES 48  // 교수 패턴 분신 최대 수
+#define MAX_PROFESSOR_BULLETS 32 // 교수 탄환 최대 수
 #define MAX_PASSABLE_TILES (MAX_X * MAX_Y)
-#define MAX_PROFESSOR_CLONES 48      // 교수 패턴에서 동시에 관리할 수 있는 분신 수
-#define MAX_PROFESSOR_BULLETS 32     // 교수 스킬 탄환 동시 관리 수
 
 // 아이템 종류
 typedef enum
@@ -148,8 +155,7 @@ typedef struct
 } ProfessorBullet;
 
 // Stage 구조체
-// - 한 스테이지에 대한 거의 모든 정보를 담는 구조체.
-// - 스테이지 ID, 이름, 맵 데이터, 시작/목표 위치, 장애물 목록 등을 포함.
+// - 스테이지 진행에 필요한 값들
 typedef struct
 {
     int id;        // 스테이지 ID 번호 (1, 2, 3 ... 이런 식으로 구분)
@@ -193,7 +199,7 @@ typedef struct
 
 } Stage;
 
-// 벽 검사 함수
+// 타일 판정(벽/통과불가)
 static inline int is_tile_opaque_char(char cell)
 {
     return (cell == '#' || cell == '@');

@@ -14,11 +14,16 @@
 
 #include "sound.h"
 
+// 사운드
+// - 효과음: SDL 오디오 콜백에서 믹싱
+// - 끊김 방지: 워커 프로세스로 재생 요청만 전달
+// - BGM: 외부 플레이어 사용(가능한 명령만 골라서)
+
 // 백그라운드 BGM 프로세스의 PID를 저장할 전역 변수
 static pid_t bgm_pid = -1;
 static int aplay_available = -1;
 static int espeak_available = -1;
-static int say_available = -1; // ✅ [추가] macOS 'say' 명령어의 가용성 캐시
+static int say_available = -1; // macOS 'say' 명령어의 가용성 캐시
 static pid_t g_sound_worker_pid = -1;
 static int g_sound_pipe[2] = {-1, -1};
 static int g_sound_worker_started = 0;
@@ -662,7 +667,7 @@ void play_bgm(const char *filePath, int loop)
 /**
  * 백그라운드에서 재생 중인 BGM 프로세스를 종료합니다. (SIGKILL)
  */
-void stop_bgm()
+void stop_bgm(void)
 {
     if (bgm_pid > 0)
     {

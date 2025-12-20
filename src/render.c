@@ -1,9 +1,6 @@
-// ============================================================================
-// render.c
-// ----------------------------------------------------------------------------
-// SDL2 + SDL2_image를 이용해 타일 기반 맵을 이미지로 렌더링한다.
-// Stage.map에 있는 문자 정보를 실제 PNG 텍스처와 매핑하여 화면에 표시한다.
-// ============================================================================
+// 렌더링
+// - 타일맵을 SDL 텍스처로 그림
+// - map 문자 -> 이미지 매핑
 
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
@@ -20,7 +17,7 @@
 #define TILE_SIZE 32
 #define ARRAY_LEN(arr) ((int)(sizeof(arr) / sizeof((arr)[0])))
 
-// 고정 해상도 + 고정 배율을 유지해 맵 크기와 무관하게 일정한 뷰포트를 제공한다.
+// 화면 크기 고정(카메라로 잘라서 보여줌)
 #define WINDOW_WIDTH 1280
 #define WINDOW_HEIGHT 720
 
@@ -96,7 +93,7 @@ static SDL_Texture *g_tex_floor = NULL;
 static SDL_Texture *g_tex_wall = NULL;
 static SDL_Texture *g_tex_goal = NULL;
 
-static SDL_Texture *g_tex_professor_1 = NULL; // 스테이지별 교수님
+static SDL_Texture *g_tex_professor_1 = NULL; // 스테이지별 교수
 static SDL_Texture *g_tex_professor_2 = NULL;
 static SDL_Texture *g_tex_professor_3 = NULL;
 static SDL_Texture *g_tex_professor_4 = NULL;
@@ -146,7 +143,7 @@ typedef struct
     unsigned char rows[HUD_FONT_HEIGHT];
 } HudFontGlyph;
 
-// SDL_ttf를 추가 도입하지 않고도 간단한 HUD 문구를 표시하기 위해 5x7 비트맵 폰트를 직접 정의한다.
+// HUD 숫자/문자용 5x7 폰트(간단 표시용)
 static const HudFontGlyph kHudFontGlyphs[] = {
     {'0', {0x1E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x1E}},
     {'1', {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}},
@@ -248,7 +245,7 @@ static const HudFontGlyph *find_hud_glyph(char c)
             return &kHudFontGlyphs[i];
         }
     }
-    return &kHudFontGlyphs[count - 1]; // 공백 기본값
+    return &kHudFontGlyphs[count - 1]; // 없으면 공백
 }
 
 static void draw_hud_glyph(char c, int x, int y)
